@@ -1549,7 +1549,7 @@ function promptAdatta(d, m, url, text) {
   let p = "Sei un cuoco di casa italiano. Cucini seguendo un menu settimanale con quantità prefissate. ";
   p += url
     ? "Leggi la ricetta che si trova a questo indirizzo: " + url + " . Se non riesci a leggere la pagina o non contiene una ricetta, rispondi solo con {\"errore\":\"non_leggibile\"}. "
-    : "Ecco il testo di una ricetta copiato da una pagina web:\n«" + text.slice(0, 12000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
+    : "Ecco il testo di una pagina web con una ricetta (può contenere anche menu, pubblicità, commenti o altre ricette: usa solo la ricetta principale della pagina):\n«" + text.slice(0, 20000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
   p += "Adatta quella ricetta, restando il più possibile fedele al piatto originale. " + vincoli(d, m);
   p += "Per ogni ingrediente della ricetta originale indica se va bene così, se va sostituito (con cosa e perché, usando solo alimenti previsti dalle quantità indicate o verdure, erbe e spezie ammesse), se va ridotto o tolto. " +
     "Poi scrivi la ricetta adattata completa per 1 persona, con quantità esatte e passaggi chiari: ogni passaggio una sola azione, con strumento, fuoco o temperatura, minuti e segnale per capire che è pronto. " +
@@ -1567,7 +1567,7 @@ function promptLeggi(url, text, porzioni) {
   let p = "Sei un cuoco di casa italiano che spiega a una persona non esperta. ";
   p += url
     ? "Leggi la ricetta che si trova a questo indirizzo: " + url + " . Se non riesci a leggere la pagina o non contiene una ricetta, rispondi solo con {\"errore\":\"non_leggibile\"}. "
-    : "Ecco il testo di una ricetta copiato da una pagina web:\n«" + text.slice(0, 12000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
+    : "Ecco il testo di una pagina web con una ricetta (può contenere anche menu, pubblicità, commenti o altre ricette: usa solo la ricetta principale della pagina):\n«" + text.slice(0, 20000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
   p += "Riporta la ricetta fedelmente: stessi ingredienti e stesso procedimento dell'originale, senza sostituzioni. ";
   p += porzioni ? "Ricalcola le dosi per " + porzioni + (porzioni === 1 ? " persona. " : " persone. ") : "Mantieni le porzioni dell'originale. ";
   p += "Scrivi con parole tue, senza copiare il testo della pagina: quantità esatte per ogni ingrediente; passaggi chiari, ognuno con una sola azione, " +
@@ -1578,6 +1578,28 @@ function promptLeggi(url, text, porzioni) {
     '"attrezzatura":["..."],"passaggi":[{"titolo":"...","istruzioni":"...","minuti":5}],"consigli":["..."],"conservazione":"...",' + NUTR_FMT + '}} ' +
     'dove "minuti" è la durata da cronometrare (0 se nessuna) e "nutrizione" è la stima per UNA porzione, calcolata dalle quantità a crudo.';
   return p;
+}
+
+/* Legge il testo di una pagina web tramite Jina Reader (r.jina.ai): gratuito, senza chiave,
+   fino a 20 pagine al minuto. Restituisce "" se non ci riesce. Riceve solo l'indirizzo della pagina. */
+async function leggiPagina(url) {
+  const ctrl = new AbortController(), tm = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const res = await fetch("https://r.jina.ai/" + url, { signal: ctrl.signal });
+    if (!res.ok) return "";
+    let txt = await res.text();
+    txt = txt.replace(/!\[[^\]]*\]\([^)]*\)/g, "")                    // immagini
+             .replace(/\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")      // link: resta solo il testo
+             .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
+    const i = txt.search(/ingredienti/i);
+    if (i > 2000) txt = txt.slice(i - 2000);                          // salta menu e testata
+    txt = txt.slice(0, 20000);
+    return txt.length > 300 && /ingredient/i.test(txt) ? txt : "";
+  } catch (e) {
+    return "";
+  } finally {
+    clearTimeout(tm);
+  }
 }
 
 function urlMode() {
@@ -1602,25 +1624,38 @@ async function adattaRicetta() {
   $("url-result").textContent = "";
   setStatus(st, diet ? (url && !text ? "Leggo la pagina e adatto la ricetta…" : "Adatto la ricetta…") : (url && !text ? "Leggo la pagina…" : "Preparo la ricetta…"), "loading");
   try {
-    let out, meta = {};
-    try {
-      const useUrl = url && !text;   // con il testo incollato non serve leggere la pagina
-      const prompt = diet ? promptAdatta(d, m, useUrl ? url : "", useUrl ? "" : text) : promptLeggi(useUrl ? url : "", useUrl ? "" : text, porzioni);
-      out = parseJson(await askModel([{ text: prompt }], diet ? 0.5 : 0.3, "adatta",
-        useUrl ? { tools: [{ url_context: {} }], meta: meta } : null));
-      const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
-      const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
-      if (failed) out = { errore: "non_leggibile" };
-    } catch (e) {
-      if (e.status === 400 && /url_context|tool/i.test(e.raw || "")) out = { errore: "strumento" };
-      else throw e;
+    let out = null, meta = {};
+    const run = (u, txt, extra) => askModel([{ text: diet ? promptAdatta(d, m, u, txt) : promptLeggi(u, txt, porzioni) }], diet ? 0.5 : 0.3, "adatta", extra).then(parseJson);
+    if (url && !text) {
+      // 1) il testo della pagina, letto da Jina Reader (gratuito, senza chiave)
+      const page = await leggiPagina(url);
+      if (page) {
+        setStatus(st, diet ? "Pagina letta: adatto la ricetta…" : "Pagina letta: preparo la ricetta…", "loading");
+        try { out = await run("", page, null); } catch (e) { if (e.status) throw e; out = null; }
+        if (out && out.errore) out = null;
+      }
+      // 2) riserva: la lettura delle pagine di Google
+      if (!out) {
+        setStatus(st, "Provo a leggere la pagina con Google…", "loading");
+        try {
+          out = await run(url, "", { tools: [{ url_context: {} }], meta: meta });
+          const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
+          const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
+          if (failed) out = { errore: "non_leggibile" };
+        } catch (e) {
+          if (e.status === 400 && /url_context|tool/i.test(e.raw || "")) out = { errore: page ? "non_leggibile" : "strumento" };
+          else throw e;
+        }
+      }
+    } else {
+      out = await run("", text, null);   // testo incollato: non serve leggere la pagina
     }
     if (out && out.errore) {
       $("url-text-box").open = true;
       const why = out.errore === "non_ricetta" ? "Nel testo incollato non trovo una ricetta."
         : out.errore === "strumento" ? "Con la tua chiave l'app non può leggere le pagine web."
-        : "Non riesco a leggere questa pagina (può essere un video, un social o una pagina riservata).";
-      setStatus(st, why + " Copia ingredienti e preparazione dalla pagina, incollali nel riquadro qui sopra e tocca di nuovo «Adatta la ricetta».", "error");
+        : "Non riesco a leggere la ricetta da questa pagina (può essere solo un video, un social o una pagina riservata).";
+      setStatus(st, why + " Copia ingredienti e preparazione dalla pagina, incollali nel riquadro qui sopra e tocca di nuovo «" + $("btn-url").textContent + "».", "error");
       return;
     }
     const rc = out && out.ricetta;
