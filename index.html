@@ -285,6 +285,7 @@ i.mg { background: var(--muted); }
       accedi con il tuo account Google, tocca «Crea chiave API», copiala e incollala qui sotto.
       La chiave resta salvata solo su questo telefono.
     </p>
+    <div id="key-where"></div>
     <label for="in-key">Chiave API di Google
       <input type="password" id="in-key" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incolla qui la chiave">
     </label>
@@ -738,7 +739,7 @@ function toggleSettings(open) {
   const show = open === undefined ? box.hidden : open;
   box.hidden = !show;
   $("btn-settings").setAttribute("aria-expanded", String(show));
-  if (show) { $("in-key").value = state.key; renderModels(); }
+  if (show) { $("in-key").value = state.key; renderModels(); renderKeyWhere(); }
 }
 
 async function saveSettings(reload) {
@@ -748,13 +749,14 @@ async function saveSettings(reload) {
   state.key = key; store.set("key", key);
   state.model = $("in-model").value || DEFAULT_MODEL; store.set("model", state.model);
   if (!keyChanged && !reload && state.models.length) {
-    setStatus($("settings-status"), "Salvato. Modello: " + state.model + ".");
+    setStatus($("settings-status"), "Salvato su questo telefono. Modello: " + state.model + ".");
     return;
   }
   setStatus($("settings-status"), "Salvato. Scarico l'elenco dei modelli…", "loading");
   try {
     await loadModels();
-    setStatus($("settings-status"), "Chiave valida. Modello: " + state.model + ". Tocca «Prova la connessione» per verificare.");
+    setStatus($("settings-status"), "Chiave valida e salvata su questo telefono. Modello: " + state.model + ". Tocca «Prova la connessione» per verificare.");
+    renderKeyWhere();
   } catch (e) {
     setStatus($("settings-status"), "Salvato, ma " + e.message.charAt(0).toLowerCase() + e.message.slice(1), "error");
   }
@@ -799,6 +801,26 @@ function requireKey(statusEl) {
   setStatus(statusEl, "Prima inserisci la chiave gratuita di Google nelle Impostazioni, in alto.", "error");
   $("settings").scrollIntoView({ behavior: "smooth", block: "start" });
   return false;
+}
+
+/* ---------- Dove resta salvata la chiave ----------
+   iPhone tiene memorie separate per Safari, per l'app aperta dall'icona sulla Home e per i
+   browser interni di altre app (Claude, GitHub, Mail…). Safari, inoltre, cancella da solo i
+   dati dei siti che non apri da qualche giorno; l'app aperta dall'icona sulla Home no. */
+const STANDALONE = !!(navigator.standalone || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+let STORAGE_OK = true;
+try { localStorage.setItem("sf_check", "1"); STORAGE_OK = localStorage.getItem("sf_check") === "1"; localStorage.removeItem("sf_check"); } catch (e) { STORAGE_OK = false; }
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+function renderKeyWhere() {
+  const box = $("key-where");
+  if (!STORAGE_OK) {
+    setStatus(box, "Qui la chiave non può essere salvata: probabilmente sei in navigazione privata o nel browser interno di un'altra app. Apri Svuotafrigo in Safari normale oppure dall'icona sulla schermata Home.", "error");
+  } else if (STANDALONE) {
+    setStatus(box, state.key ? "La chiave è salvata su questo telefono: non dovrai reinserirla." : "Inserisci la chiave una volta sola: resterà salvata su questo telefono.");
+  } else {
+    setStatus(box, "Stai usando l'app dentro un browser. Per non reinserire la chiave, aggiungi Svuotafrigo alla schermata Home (Condividi, poi «Aggiungi alla schermata Home»), aprila sempre da lì e inserisci la chiave in quella versione: l'iPhone la conserva separata da Safari.", "error");
+  }
 }
 
 /* ---------- Schede ---------- */
@@ -1486,6 +1508,7 @@ $("pm-meal").value = (function () { const h = new Date().getHours(); return h < 
 $("in-plan").checked = store.get("plan", true);
 setTab(state.tab);
 renderModels();
+renderKeyWhere();
 renderIngredients();
 renderDays();
 renderWeek();
