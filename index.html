@@ -763,6 +763,8 @@ const FRUTTA_STAGIONE = [
   "arance, clementine, cachi, kiwi, limoni, mandarini, mele, pere, pompelmi, uva"
 ];
 const EVITA = "Ingredienti da non usare: aglio, cipolla, peperoncino, pepe, menta, cioccolato, caffè, alcolici, burro, panna. Niente fritture. ";
+/* «Dal frigo» è indipendente dal menu: esclude solo ciò che dice la sua casella. */
+const EVITA_FRIGO = "Non usare aglio, cipolla, pepe e peperoncino, e niente fritture. ";
 const NUTR_FMT = '"nutrizione":{"kcal":450,"proteine_g":30,"carboidrati_g":40,"grassi_g":15,"fibre_g":6}';
 const NUTR_NOTA = ' "nutrizione" è la stima per UNA porzione, calcolata dagli ingredienti e dalle loro quantità a crudo.';
 
@@ -873,7 +875,10 @@ function thinkingFor(model, kind) {
   const v = /^gemini-(\d+)\.(\d+)-(flash|pro)/.exec(model);
   if (v && v[1] === "2") return v[3] === "flash" ? [{ thinkingBudget: 0 }, null] : [{ thinkingBudget: 128 }, null];
   // Le ricette sono solo testo: basta il ragionamento minimo. Per le foto un po' di più.
-  return kind === "ingredienti" ? [{ thinkingLevel: "low" }, null] : [{ thinkingLevel: "minimal" }, { thinkingLevel: "low" }, null];
+  if (kind === "ingredienti") return [{ thinkingLevel: "low" }, null];
+  // scegliere ricette coerenti con gli alimenti richiede un minimo di ragionamento
+  if (kind === "ricette") return [{ thinkingLevel: "low" }, { thinkingLevel: "minimal" }, null];
+  return [{ thinkingLevel: "minimal" }, { thinkingLevel: "low" }, null];
 }
 
 function netError(e, timedOut) {
@@ -1186,7 +1191,8 @@ function renderPhotos() {
 function promptIngredienti() {
   return "Sei un assistente di cucina. Guarda le foto di un frigorifero, di una dispensa o di una spesa ed elenca gli alimenti " +
     "che riconosci con ragionevole certezza. Usa nomi generici in italiano, in minuscolo (per esempio: uova, zucchine, " +
-    "yogurt bianco, petto di pollo). Non inventare alimenti che non si vedono. Ignora ciò che non è cibo. " +
+    "yogurt bianco, petto di pollo). Leggi anche le etichette di confezioni, sacchetti, barattoli e bottiglie " +
+    "(per esempio farina, zucchero, lievito, latte, cacao) e includi quegli alimenti. Non inventare alimenti che non si vedono. Ignora ciò che non è cibo. " +
     "Non ripetere lo stesso alimento. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
     '{"ingredienti":["...","..."]}';
 }
@@ -1346,28 +1352,57 @@ function contesto() {
 
 function dispensa(c) {
   if (!c.pantry) return "Non dare per scontato nessun altro ingrediente oltre a sale e acqua. ";
-  return c.plan
+  return (c.plan
     ? "In casa c'è anche la dispensa di base (olio extravergine d'oliva, sale, erbe aromatiche, spezie delicate, pasta, riso, farina). "
-    : "In casa c'è anche la dispensa di base (olio, sale, pepe, spezie comuni, pasta, riso, farina, aglio, cipolla). ";
+    : "In casa c'è anche la dispensa di base (olio, sale, pepe, spezie comuni, pasta, riso, farina, aglio, cipolla). ") +
+    "Usala solo per completare le ricette: non deve decidere il tipo di piatto. ";
 }
 
-function promptRicette(avoid) {
+function promptRicette(avoid, strict) {
   const c = contesto();
   const time = parseInt($("in-time").value, 10);
   let p = "Sei un cuoco di casa italiano, pratico. Ingredienti disponibili: " + state.ingredients.join(", ") + ". ";
   p += dispensa(c);
-  if (c.plan) p += EVITA;
+  if (c.plan) p += EVITA_FRIGO;
   p += "Proponi 4 ricette per " + c.people + (c.people === 1 ? " persona" : " persone") + ". ";
   if (time) p += "Tempo totale massimo: " + time + " minuti. ";
   if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
   if (avoid && avoid.length) p += "Non riproporre queste ricette: " + avoid.join("; ") + ". ";
+  p += COERENZA + (strict ? "ATTENZIONE: alcune proposte precedenti non usavano gli ingredienti disponibili. Ogni ricetta deve usarne almeno due tra i più caratterizzanti. " : "");
   p += "Privilegia le ricette che usano il più possibile gli ingredienti disponibili e non richiedono acquisti. " +
     "Non è obbligatorio usare tutti gli ingredienti. Per ora servono solo le proposte, non il procedimento. " +
     "Ordina le ricette da quella che richiede meno acquisti. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
-    '{"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":30,"difficolta":"facile",' +
+    '{"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":30,"difficolta":"facile","usa":["..."],' +
     '"ingredienti_principali":["...","..."],"da_comprare":["..."],' + NUTR_FMT + '}]} ' +
-    'dove "difficolta" è facile, media o impegnativa, "da_comprare" elenca solo ciò che non è tra gli ingredienti disponibili (lista vuota se non serve nulla) e' + NUTR_NOTA;
+    'dove "usa" elenca, scritti come nella lista, gli ingredienti disponibili che la ricetta usa, "difficolta" è facile, media o impegnativa, ' +
+    '"da_comprare" elenca solo ciò che non è tra gli ingredienti disponibili (lista vuota se non serve nulla) e' + NUTR_NOTA;
   return p;
+}
+
+const COERENZA = "Prima di scegliere, guarda gli ingredienti disponibili nel loro insieme e capisci a che tipo di piatto fanno pensare: " +
+  "per esempio farina, uova, zucchero, burro e lievito fanno pensare a un dolce; pasta, pomodoro e basilico a un primo. " +
+  "Proponi ricette coerenti con quella combinazione: dolci se sono ingredienti da dolce, piatti salati se sono da piatto salato; se c'è un po' di tutto puoi alternare. " +
+  "Ogni ricetta deve avere come base gli ingredienti disponibili (almeno due, i più caratterizzanti), non solo la dispensa. " +
+  "Se servirebbe un ingrediente da non usare, sostituiscilo con un'alternativa adatta invece di cambiare piatto. ";
+
+/* Confronta due nomi di alimenti: uguali, uno contenuto nell'altro o con la stessa radice (uova/uovo). */
+function normAlimento(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim(); }
+function stessoAlimento(a, b) {
+  a = normAlimento(a); b = normAlimento(b);
+  if (!a || !b) return false;
+  if (a === b || (" " + a + " ").includes(" " + b + " ") || (" " + b + " ").includes(" " + a + " ")) return true;
+  return a.split(" ").some((x) => b.split(" ").some((y) => {
+    if (x.length < 4 || y.length < 4) return false;
+    // singolare e plurale: uovo/uova, carota/carote (non burro/burrata)
+    if (Math.abs(x.length - y.length) > 1) return false;
+    let k = 0; while (k < x.length && k < y.length && x[k] === y[k]) k++;
+    return k >= 3 && k >= Math.min(x.length, y.length) - 2;
+  }));
+}
+/* Quanti degli alimenti disponibili usa davvero la ricetta. */
+function quantiUsa(r, ings) {
+  const used = [].concat(r.usa || [], r.ingredienti_principali || []);
+  return ings.filter((a) => used.some((u) => stessoAlimento(a, u))).length;
 }
 
 async function makeRecipes(more) {
@@ -1377,7 +1412,19 @@ async function makeRecipes(more) {
   $("sec-recipes").scrollIntoView({ behavior: "smooth", block: "start" });
   try {
     const avoid = more ? state.recipes.map((r) => r.titolo) : [];
-    const list = adopt(parseJson(await askModel([{ text: promptRicette(avoid) }], 0.8, "ricette")));
+    const need = Math.min(2, state.ingredients.length);
+    const buone = (l) => l.filter((r) => quantiUsa(r, state.ingredients) >= need);
+    let list = adopt(parseJson(await askModel([{ text: promptRicette(avoid) }], 0.6, "ricette")));
+    let ok = buone(list);
+    if (ok.length < Math.min(2, list.length || 2)) {
+      // proposte scollegate dagli alimenti: si chiede di nuovo, in modo più rigido
+      setStatus($("recipes-status"), "Ricontrollo le proposte…", "loading");
+      const again = adopt(parseJson(await askModel([{ text: promptRicette(avoid.concat(list.map((r) => r.titolo)), true) }], 0.4, "ricette")));
+      ok = ok.concat(buone(again));
+      if (!ok.length) ok = list.concat(again);
+    }
+    list = ok.sort((a, b) => quantiUsa(b, state.ingredients) - quantiUsa(a, state.ingredients) ||
+      (a.da_comprare || []).length - (b.da_comprare || []).length).slice(0, 4);
     if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
     state.recipes = more ? state.recipes.concat(list) : list;
     saveRecipes();
@@ -1436,12 +1483,14 @@ function promptPerMe(d, m, n, avoid, withFood) {
   let p = "Sei un cuoco di casa italiano. Cucini seguendo un menu settimanale con quantità prefissate. " + vincoli(d, m);
   if (withFood && state.ingredients.length) {
     p += "In casa ci sono questi alimenti: " + state.ingredients.join(", ") + ". Costruisci le ricette attorno a quelli compatibili con le quantità indicate " +
-      "(le verdure, e la fonte proteica o il cereale quando corrispondono a un'opzione prevista); ignora gli altri e non superare mai quelle quantità. ";
+      "(le verdure, e la fonte proteica o il cereale quando corrispondono a un'opzione prevista); ignora gli altri e non superare mai quelle quantità. " +
+      "Se gli alimenti in casa non c'entrano con questo pasto (per esempio sono ingredienti da dolce e il pasto è una cena), non forzarli: " +
+      "proponi comunque ricette adatte al pasto e scrivi nel campo \"nota\" una frase breve che lo spiega; altrimenti lascia \"nota\" vuoto. ";
   }
   p += "Proponi " + n + (n === 1 ? " ricetta" : " ricette diverse tra loro") + ", varie e appetitose. ";
   if (avoid && avoid.length) p += "Non riproporre: " + avoid.join("; ") + ". ";
   p += "Per ora servono solo le proposte, non il procedimento. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
-    '{"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":25,"difficolta":"facile",' +
+    (withFood && state.ingredients.length ? '{"nota":"",' : "{") + '"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":25,"difficolta":"facile",' +
     '"ingredienti_principali":["...","..."],"da_comprare":["..."],' + NUTR_FMT + '}]} ' +
     'dove "difficolta" è facile, media o impegnativa, "da_comprare" elenca ciò che serve e non è tra gli alimenti in casa (lista vuota se non è stato indicato nulla) e' + NUTR_NOTA;
   return p;
@@ -1558,11 +1607,14 @@ async function perMeGenerate() {
     }
     setStatus(st, "Combino quello che hai con le quantità del menu…", "loading");
     state.lastSlot = { d: d, m: m, n: 2 };
-    const list = adopt(parseJson(await askModel([{ text: promptPerMe(d, m, 2, [], true) }], 0.8, "perme")), { vincoli: vincoli(d, m) });
+    const out = parseJson(await askModel([{ text: promptPerMe(d, m, 2, [], true) }], 0.7, "perme"));
+    const list = adopt(out, { vincoli: vincoli(d, m) });
     if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
     state.pmRecipes = list;
     renderPm();
-    setStatus(st, state.ingredients.length ? "" : "Non hai indicato alimenti: ecco due idee con le quantità del menu.");
+    const nota = out && !Array.isArray(out) && typeof out.nota === "string" ? out.nota.trim() : "";
+    setStatus(st, !state.ingredients.length ? "Non hai indicato alimenti: ecco due idee con le quantità del menu."
+      : nota ? nota + " Per usarli come sono, prova la scheda «Dal frigo»." : "");
   } catch (e) {
     setStatus(st, e.message, "error");
   }
@@ -2004,7 +2056,7 @@ function promptDettaglio(r) {
     if (ings.length) p += "Alimenti disponibili in casa: " + ings.join(", ") + ". ";
   } else {
     p += "È per " + c.people + (c.people === 1 ? " persona" : " persone") + ". Ingredienti disponibili in casa: " + ings.join(", ") + ". " + dispensa(c);
-    if (c.plan) p += EVITA;
+    if (c.plan) p += EVITA_FRIGO;
     if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
   }
   if (buy.length) p += "Ingredienti da comprare già previsti: " + buy.join(", ") + ". Non aggiungerne altri. ";
