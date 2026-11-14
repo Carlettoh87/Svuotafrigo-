@@ -1,0 +1,15 @@
+{
+  "name": "Svuotafrigo",
+  "short_name": "Svuotafrigo",
+  "description": "Fotografa il frigo e ricevi ricette con quello che hai in casa.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6F4F1",
+  "theme_color": "#6B2737",
+  "icons": [
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

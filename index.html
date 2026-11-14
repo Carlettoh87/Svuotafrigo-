@@ -20,6 +20,7 @@
   - Il file contiene solo alimenti, quantità e ricette: nessun dato personale.
   - I testi inviati al modello sono nelle funzioni promptIngredienti(),
     promptRicette(), promptPerMe() e promptDettaglio().
+  - sw.js e manifest.webmanifest servono per usare l'app anche senza rete.
   - Nessun server: la pagina parla direttamente con la API di Google usando la
     chiave salvata solo sul tuo telefono.
 -->
@@ -35,6 +36,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#F6F4F1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#151114" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -219,6 +221,58 @@ main.in-detail > *:not(#detail) { display: none; }
 .steps button.timer.running { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .steps button.timer.done { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
 footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
+/* Avviso offline */
+#offline { font-size: 15px; }
+
+/* Lista della spesa */
+.sp-rep { margin: 14px 0 0; font-size: 11.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--gold);
+  display: flex; align-items: center; gap: 12px; }
+.sp-rep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+#spesa .checklist label { font-size: 17px; }
+.sp-qty { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sp-del { margin-left: auto; min-height: 0; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; letter-spacing: 0; }
+.sp-base { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sp-base summary { cursor: pointer; color: var(--muted); font-size: 15px; padding: 6px 0; }
+.sp-note { margin-top: 10px; }
+#spesa input:checked + span .sp-qty { text-decoration: line-through; }
+
+/* Barra dei timer, sempre visibile in basso */
+#timerbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex; gap: 8px; overflow-x: auto; padding: 10px calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);
+  background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0,0,0,.06);
+}
+#timerbar[hidden] { display: none !important; }
+body.has-timers { padding-bottom: calc(env(safe-area-inset-bottom) + 110px); }
+.timer-chip {
+  flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 0; padding: 8px 12px;
+  border: 1px solid var(--accent); border-radius: 2px; background: var(--surface); text-transform: none; letter-spacing: 0; text-align: left; max-width: 220px;
+}
+.timer-chip .tc-time { font: 500 22px/1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; color: var(--accent); }
+.timer-chip .tc-label { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+.timer-chip.done { background: var(--warn-bg); border-color: var(--warn); animation: pulse 1s ease-in-out infinite alternate; }
+.timer-chip.done .tc-time { color: var(--warn); }
+@keyframes pulse { from { opacity: 1; } to { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .timer-chip.done { animation: none; } }
+
+/* Modalità cucina */
+main.in-cook > *:not(#cook) { display: none !important; }
+main.in-cook > #cook { display: flex; }
+#cook { flex-direction: column; gap: 22px; min-height: calc(100vh - 60px); padding-top: 4px; }
+.cook-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cook-top button { flex: none; }
+.cook-progress { font: italic 400 20px/1 var(--font-display); color: var(--gold); font-variant-numeric: lining-nums; }
+.cook-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.cook-kicker { font-size: 12px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.cook-title { font: 500 34px/1.12 var(--font-display); }
+.cook-text { font-size: 24px; line-height: 1.5; }
+.cook-ingr label { font-size: 20px; }
+.cook-body button.timer { align-self: flex-start; font-size: 14px; padding: 14px 18px; min-height: 52px; }
+.cook-nav { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; position: sticky; bottom: calc(env(safe-area-inset-bottom) + 8px); }
+body.has-timers .cook-nav { bottom: calc(env(safe-area-inset-bottom) + 96px); }
+.cook-nav button { min-height: 64px; font-size: 15px; background: var(--surface); }
+.cook-nav button.primary { background: var(--accent); }
+
 
 /* Schede in alto: Dal frigo / Per me */
 .tabs { display: flex; border-bottom: 1px solid var(--line); }
@@ -227,7 +281,9 @@ footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
   min-height: 48px; margin-bottom: -1px;
 }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-main[data-tab="frigo"] [data-view="perme"], main[data-tab="perme"] [data-view="frigo"] { display: none; }
+main[data-tab="frigo"] [data-view]:not([data-view="frigo"]),
+main[data-tab="perme"] [data-view]:not([data-view="perme"]),
+main[data-tab="spesa"] [data-view]:not([data-view="spesa"]) { display: none; }
 
 /* Giorni della settimana */
 .days { display: flex; gap: 6px; }
@@ -274,7 +330,9 @@ i.mg { background: var(--muted); }
   <div class="tabs" role="tablist" aria-label="Sezioni">
     <button type="button" role="tab" id="tab-frigo" aria-selected="true">Dal frigo</button>
     <button type="button" role="tab" id="tab-perme" aria-selected="false">Per me</button>
+    <button type="button" role="tab" id="tab-spesa" aria-selected="false">Spesa</button>
   </div>
+  <div id="offline" class="status" hidden><span>Sei offline: il menu della settimana e le ricette già aperte funzionano. Foto e nuove ricette tornano quando c'è rete.</span></div>
 
   <!-- IMPOSTAZIONI -->
   <section class="card" id="settings" hidden>
@@ -414,6 +472,42 @@ i.mg { background: var(--muted); }
     <div class="recipes" id="pm-recipes"></div>
   </section>
 
+  <!-- ===== SCHEDA «SPESA» ===== -->
+  <section class="card" id="sec-spesa" data-view="spesa">
+    <h2>Lista della spesa</h2>
+    <p class="muted">Calcolata dal menu della settimana, alternative comprese. Scegli i giorni per cui fare la spesa.</p>
+    <div class="days" id="spesa-days" role="group" aria-label="Giorni da includere"></div>
+    <label class="check" for="in-spesa-casa">
+      <input type="checkbox" id="in-spesa-casa" checked>
+      <span id="spesa-casa-label">Metti a parte ciò che ho già in casa</span>
+    </label>
+    <div class="row">
+      <button type="button" class="primary" id="btn-spesa-share">Condividi la lista</button>
+      <button type="button" id="btn-spesa-copy">Copia la lista</button>
+    </div>
+    <div id="spesa-status" role="status" aria-live="polite"></div>
+    <div id="spesa"></div>
+    <form class="add" id="form-spesa">
+      <input type="text" id="in-spesa" placeholder="Aggiungi un articolo" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un articolo alla lista">
+      <button type="submit">Aggiungi</button>
+    </form>
+    <button type="button" class="small" id="btn-spesa-reset">Togli tutte le spunte</button>
+  </section>
+
+  <!-- MODALITÀ CUCINA (un passo alla volta) -->
+  <section id="cook" hidden aria-label="Modalità cucina">
+    <div class="cook-top">
+      <button type="button" class="small" id="cook-close">Esci</button>
+      <span class="cook-progress" id="cook-progress"></span>
+      <button type="button" class="small" id="cook-voice" aria-pressed="false">Leggi ad alta voce</button>
+    </div>
+    <div class="cook-body" id="cook-body"></div>
+    <div class="cook-nav">
+      <button type="button" id="cook-prev">Indietro</button>
+      <button type="button" class="primary" id="cook-next">Avanti</button>
+    </div>
+  </section>
+
   <!-- PAGINA DELLA RICETTA (si apre toccando una ricetta) -->
   <section class="card" id="detail" hidden>
     <button type="button" class="small" id="btn-back" style="align-self:flex-start">← Indietro</button>
@@ -423,6 +517,7 @@ i.mg { background: var(--muted); }
 
   <footer class="muted">Software libero, licenza MIT. Calorie e nutrienti sono stime indicative. Le ricette create al momento sono generate da un modello di IA: controlla sempre scadenze e cotture.</footer>
 </main>
+<div id="timerbar" hidden aria-live="polite"></div>
 
 <script>
 "use strict";
@@ -502,7 +597,7 @@ const NUTR_FMT = '"nutrizione":{"kcal":450,"proteine_g":30,"carboidrati_g":40,"g
 const NUTR_NOTA = ' "nutrizione" è la stima per UNA porzione, calcolata dagli ingredienti e dalle loro quantità a crudo.';
 
 /* Ricette fisse della settimana: quantità per una persona, valori nutrizionali calcolati dalle tabelle di composizione. */
-const SETTIMANA = {"lun": {"colazione": {"titolo": "Gallette con marmellata e burro di arachidi", "descrizione": "Con una tazza di latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 260, "p": 9, "c": 42, "g": 6, "f": 2}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma su ogni galletta un velo sottile di burro di arachidi e sopra la marmellata, dividendola in parti uguali.", "minuti": 0}], "consigli": ["Se le gallette sono poco croccanti, passale 1 minuto in padella asciutta a fuoco basso."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Mela e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 4, "c": 21, "g": 9, "f": 5}, "voci": "150 g di mela, 15 g di mandorle"}, "pranzo": {"titolo": "Riso basmati con zucca arrosto, salvia e feta", "descrizione": "Dolce e sapido insieme.", "tempo_minuti": 35, "difficolta": "facile", "piano": true, "nutr": {"kcal": 640, "p": 23, "c": 67, "g": 31, "f": 4}, "ingredienti_principali": ["riso basmati", "feta", "zucca"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 25, "ingredienti": [{"nome": "riso basmati", "quantita": "70 g"}, {"nome": "feta", "quantita": "100 g"}, {"nome": "zucca", "quantita": "250 g", "note": "già pulita"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "colino"], "passaggi": [{"titolo": "Prepara la zucca", "istruzioni": "Accendi il forno a 200 °C (statico). Taglia la zucca a cubetti di circa 2 cm.", "minuti": 0}, {"titolo": "Arrostisci la zucca", "istruzioni": "Distribuisci i cubetti sulla teglia con metà dell'olio (1 cucchiaino abbondante), la salvia spezzettata e il sale. Inforna nel ripiano centrale: è pronta quando è morbida alla forchetta e dorata sui bordi.", "minuti": 25}, {"titolo": "Cuoci il riso", "istruzioni": "Mentre la zucca cuoce, sciacqua il riso nel colino. Lessalo in acqua bollente poco salata per il tempo indicato sulla confezione, poi scolalo.", "minuti": 11}, {"titolo": "Componi il piatto", "istruzioni": "Unisci riso e zucca, sbriciola sopra la feta con le mani e completa con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["La feta è già salata: non aggiungere altro sale al piatto finito."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Pera e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 16, "c": 28, "g": 0, "f": 5}, "voci": "150 g di pera, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Uova strapazzate cremose con cavolfiore arrosto alla curcuma", "descrizione": "Morbide le uova, croccante il cavolfiore.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 420, "p": 26, "c": 34, "g": 20, "f": 8}, "ingredienti_principali": ["uova", "gallette di mais o di riso", "cavolfiore"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 22, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolfiore", "quantita": "300 g", "note": "solo le cimette"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "ciotola", "padella antiaderente", "spatola"], "passaggi": [{"titolo": "Prepara il cavolfiore", "istruzioni": "Accendi il forno a 200 °C (statico). Dividi il cavolfiore in cimette piccole, di circa 3 cm.", "minuti": 0}, {"titolo": "Arrostisci", "istruzioni": "Condisci le cimette sulla teglia con metà dell'olio, la curcuma e il sale. Inforna: sono pronte quando sono dorate e tenere alla forchetta.", "minuti": 20}, {"titolo": "Sbatti le uova", "istruzioni": "Rompi le uova nella ciotola e sbattile con una forchetta per 20 secondi.", "minuti": 0}, {"titolo": "Cuoci le uova", "istruzioni": "Scalda l'olio rimasto nella padella a fuoco basso. Versa le uova e mescola lentamente con la spatola. Toglile dal fuoco quando sono rapprese ma ancora morbide e lucide: finiscono di cuocere nel piatto.", "minuti": 3}, {"titolo": "Servi", "istruzioni": "Completa le uova con il prezzemolo e accompagna con il cavolfiore e le gallette.", "minuti": 0}], "consigli": ["Il fuoco basso è il segreto: a fuoco alto le uova diventano asciutte e gommose."], "conservazione": "Il cavolfiore si conserva 2 giorni in frigorifero; le uova vanno fatte al momento."}}}, "mar": {"colazione": {"titolo": "Porridge di avena alla cannella", "descrizione": "Cremoso, cotto direttamente nel latte.", "tempo_minuti": 7, "difficolta": "facile", "piano": true, "nutr": {"kcal": 220, "p": 11, "c": 31, "g": 5, "f": 4}, "ingredienti_principali": ["fiocchi di avena", "latte vaccino parzialmente scremato"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 1, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "fiocchi di avena", "quantita": "40 g", "note": "scegli quelli certificati senza glutine"}, {"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cannella in polvere", "quantita": "1 pizzico"}], "attrezzatura": ["pentolino", "cucchiaio di legno"], "passaggi": [{"titolo": "Cuoci l'avena", "istruzioni": "Metti i fiocchi e il latte nel pentolino. Cuoci a fuoco basso mescolando spesso, finché il composto è cremoso e i fiocchi sono morbidi.", "minuti": 5}, {"titolo": "Lascia riposare", "istruzioni": "Versa in una ciotola, spolvera con la cannella e lascia riposare un paio di minuti: si addensa ancora.", "minuti": 2}], "consigli": ["Se diventa troppo denso, aggiungi 1 o 2 cucchiai d'acqua, non altro latte."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Pera e noci", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 3, "c": 23, "g": 10, "f": 6}, "voci": "150 g di pera, 15 g di noci"}, "pranzo": {"titolo": "Pasta di mais con gamberetti e broccoli", "descrizione": "Un primo completo, profumato di limone.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 550, "p": 45, "c": 63, "g": 13, "f": 8}, "ingredienti_principali": ["pasta di mais", "gamberetti sgusciati", "broccoli"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 17, "ingredienti": [{"nome": "pasta di mais", "quantita": "70 g"}, {"nome": "gamberetti sgusciati", "quantita": "200 g"}, {"nome": "broccoli", "quantita": "200 g", "note": "solo le cimette"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "scorza di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola da 3 litri", "padella larga", "scolapasta"], "passaggi": [{"titolo": "Porta l'acqua a bollore", "istruzioni": "Riempi la pentola con 2 litri d'acqua, copri e metti a fuoco alto. Quando bolle aggiungi 1 cucchiaino di sale grosso. Intanto dividi i broccoli in cimette di 2-3 cm.", "minuti": 8}, {"titolo": "Cuoci pasta e broccoli", "istruzioni": "Versa la pasta e mescola. Dopo 3 minuti aggiungi le cimette nella stessa pentola e prosegui fino al tempo indicato sulla confezione: la pasta deve restare soda, i broccoli verde vivo.", "minuti": 9}, {"titolo": "Salta i gamberetti", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio per 1 minuto. Aggiungi i gamberetti e cuoci mescolando finché sono rosa e opachi: non di più, o diventano gommosi.", "minuti": 3}, {"titolo": "Unisci", "istruzioni": "Scola pasta e broccoli tenendo 2 cucchiai di acqua di cottura. Versa tutto nella padella, mescola 1 minuto a fuoco basso, spegni e completa con l'olio rimasto, il prezzemolo e la scorza di limone.", "minuti": 1}], "consigli": ["La pasta di mais scuoce in fretta: assaggiala 1 minuto prima del tempo indicato."], "conservazione": "Meglio appena fatta."}}, "spuntino2": {"titolo": "Clementine e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 155, "p": 16, "c": 24, "g": 0, "f": 3}, "voci": "150 g di clementine, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Salmone al forno con fagiolini al limone", "descrizione": "Il pesce grasso della settimana, cotto senza aggiungere grassi.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 545, "p": 35, "c": 35, "g": 28, "f": 8}, "ingredienti_principali": ["filetto di salmone", "gallette di mais o di riso", "fagiolini"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "filetto di salmone", "quantita": "150 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "fagiolini", "quantita": "250 g"}, {"nome": "limone", "quantita": "mezzo (2 fette e la scorza)"}, {"nome": "aneto o prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "scolapasta"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 180 °C (statico) e metti sul fuoco una pentola d'acqua. Elimina le due punte dei fagiolini.", "minuti": 0}, {"titolo": "Cuoci il salmone", "istruzioni": "Appoggia il filetto sulla teglia con la pelle verso il basso, sala appena e copri con le fette di limone. Inforna: è pronto quando la polpa è rosa opaco e si sfalda toccandola con la forchetta.", "minuti": 14}, {"titolo": "Lessa i fagiolini", "istruzioni": "Quando l'acqua bolle salala poco e cuoci i fagiolini: devono essere teneri ma ancora di un verde vivo. Scolali.", "minuti": 8}, {"titolo": "Condisci e servi", "istruzioni": "Condisci i fagiolini con l'olio, la scorza di limone e le erbe. Servi con il salmone e le gallette.", "minuti": 0}], "consigli": ["Fuori stagione vanno benissimo i fagiolini surgelati: stessa cottura, 2 minuti in più."], "conservazione": "Il salmone cotto si conserva 1 giorno in frigorifero."}}}, "mer": {"colazione": {"titolo": "Pancake di avena con marmellata", "descrizione": "Tre pancake soffici, senza grassi in cottura.", "tempo_minuti": 11, "difficolta": "facile", "piano": true, "nutr": {"kcal": 300, "p": 16, "c": 44, "g": 6, "f": 5}, "ingredienti_principali": ["farina di avena", "latte (per l'impasto)", "albume", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "farina di avena", "quantita": "45 g", "note": "certificata senza glutine"}, {"nome": "latte (per l'impasto)", "quantita": "30 ml"}, {"nome": "albume", "quantita": "1"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "latte vaccino parzialmente scremato (da bere)", "quantita": "150 ml"}], "attrezzatura": ["ciotola", "frusta o forchetta", "padella antiaderente piccola", "spatola"], "passaggi": [{"titolo": "Prepara la pastella", "istruzioni": "Nella ciotola mescola la farina di avena, i 30 ml di latte e l'albume finché la pastella è liscia e senza grumi. Lasciala riposare.", "minuti": 2}, {"titolo": "Cuoci i pancake", "istruzioni": "Scalda la padella antiaderente a fuoco medio-basso, senza olio. Versa la pastella in 3 dischi. Girali quando in superficie compaiono le bollicine e sotto sono dorati, poi cuoci l'altro lato per lo stesso tempo.", "minuti": 4}, {"titolo": "Servi", "istruzioni": "Spalma la marmellata sui pancake e accompagna con il latte tiepido.", "minuti": 0}], "consigli": ["Se la pastella è troppo densa per essere versata, aggiungi 1 cucchiaio d'acqua."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kiwi e nocciole", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 4, "c": 23, "g": 10, "f": 6}, "voci": "150 g di kiwi, 15 g di nocciole"}, "pranzo": {"titolo": "Grano saraceno con lenticchie, carote e sedano", "descrizione": "Un piatto unico rustico, senza soffritto.", "tempo_minuti": 38, "difficolta": "facile", "piano": true, "nutr": {"kcal": 520, "p": 22, "c": 73, "g": 13, "f": 19}, "ingredienti_principali": ["grano saraceno in chicchi", "lenticchie in scatola o in vetro", "carote", "sedano"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 30, "ingredienti": [{"nome": "grano saraceno in chicchi", "quantita": "70 g"}, {"nome": "lenticchie in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "sedano", "quantita": "50 g (1 costa)"}, {"nome": "passata di pomodoro", "quantita": "50 g (3 cucchiai)"}, {"nome": "alloro", "quantita": "1 foglia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola media", "casseruola con coperchio", "colino"], "passaggi": [{"titolo": "Lessa il grano saraceno", "istruzioni": "Sciacqua i chicchi nel colino. Lessali in acqua bollente poco salata finché sono teneri ma ancora interi, poi scolali.", "minuti": 15}, {"titolo": "Taglia le verdure", "istruzioni": "Taglia carote e sedano a dadini di circa mezzo centimetro.", "minuti": 0}, {"titolo": "Stufa le verdure", "istruzioni": "Metti i dadini nella casseruola con metà dell'olio e 3 cucchiai d'acqua. Copri e cuoci a fuoco medio-basso finché sono morbidi.", "minuti": 8}, {"titolo": "Aggiungi le lenticchie", "istruzioni": "Sciacqua le lenticchie sotto l'acqua. Uniscile alle verdure con la passata, l'alloro e mezzo bicchiere d'acqua (100 ml). Cuoci a fuoco basso senza coperchio, finché il sugo si è ristretto.", "minuti": 8}, {"titolo": "Completa", "istruzioni": "Togli l'alloro, unisci il grano saraceno, mescola e condisci con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["Se hai lenticchie secche usane 50 g e lessale a parte per 25-30 minuti."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Mela e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 7, "c": 21, "g": 6, "f": 3}, "voci": "150 g di mela, 20 g di parmigiano"}, "cena": {"titolo": "Petto di pollo alla piastra con bietole al limone", "descrizione": "Semplice, se il pollo resta succoso.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 455, "p": 53, "c": 34, "g": 12, "f": 5}, "ingredienti_principali": ["petto di pollo senza pelle", "gallette di mais o di riso", "bietole"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "petto di pollo senza pelle", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "bietole", "quantita": "300 g"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "origano", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["piastra o padella antiaderente", "padella larga con coperchio", "tagliere"], "passaggi": [{"titolo": "Prepara il pollo", "istruzioni": "Se le fette sono più spesse di 1,5 cm, tagliale a metà nello spessore. Asciugale con carta da cucina.", "minuti": 0}, {"titolo": "Prepara le bietole", "istruzioni": "Lavale e tagliale a strisce di 3 cm, tenendo separate le coste bianche dalle foglie.", "minuti": 0}, {"titolo": "Cuoci il pollo", "istruzioni": "Scalda la piastra a fuoco medio-alto per 2 minuti, senza grassi. Cuoci il pollo 4 minuti per lato senza muoverlo: è pronto quando all'interno è bianco e il succo che esce è trasparente.", "minuti": 8}, {"titolo": "Cuoci le bietole", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi prima le coste, dopo 3 minuti le foglie, copri e cuoci finché sono appassite.", "minuti": 7}, {"titolo": "Condisci", "istruzioni": "Lascia riposare il pollo 2 minuti, poi condiscilo con l'olio rimasto, il limone, l'origano e il sale. Servi con le bietole e le gallette.", "minuti": 2}], "consigli": ["Il riposo finale serve: i succhi si ridistribuiscono e la carne resta morbida."], "conservazione": "In frigorifero fino a 1 giorno."}}}, "gio": {"colazione": {"titolo": "Pane integrale tostato con ricotta e marmellata", "descrizione": "Una colazione che sazia a lungo.", "tempo_minuti": 6, "difficolta": "facile", "piano": true, "nutr": {"kcal": 255, "p": 13, "c": 39, "g": 5, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "pane integrale", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 3, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["tostapane o padella", "pentolino"], "passaggi": [{"titolo": "Tosta il pane", "istruzioni": "Tosta la fetta nel tostapane, oppure in padella asciutta a fuoco medio girandola a metà, finché è dorata e croccante fuori.", "minuti": 3}, {"titolo": "Farcisci", "istruzioni": "Spalma prima la ricotta e poi la marmellata. Scalda il latte finché è tiepido.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Clementine e anacardi", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 4, "c": 23, "g": 7, "f": 3}, "voci": "150 g di clementine, 15 g di anacardi"}, "pranzo": {"titolo": "Crostoni integrali con ricotta, funghi al timo e radicchio", "descrizione": "Caldo e croccante, pronto in venti minuti.", "tempo_minuti": 18, "difficolta": "facile", "piano": true, "nutr": {"kcal": 460, "p": 27, "c": 47, "g": 18, "f": 13}, "ingredienti_principali": ["pane integrale", "ricotta vaccina light", "funghi champignon", "radicchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 10, "ingredienti": [{"nome": "pane integrale", "quantita": "90 g (2-3 fette)"}, {"nome": "ricotta vaccina light", "quantita": "100 g"}, {"nome": "funghi champignon", "quantita": "250 g"}, {"nome": "radicchio", "quantita": "50 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "aceto di mele", "quantita": "qualche goccia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella larga", "tostapane o padella", "ciotolina"], "passaggi": [{"titolo": "Prepara le verdure", "istruzioni": "Pulisci i funghi con un panno umido e affettali a 3 mm. Taglia il radicchio a listarelle sottili.", "minuti": 0}, {"titolo": "Cuoci i funghi", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio-alto. Aggiungi i funghi e il sale e cuoci mescolando ogni tanto: sono pronti quando l'acqua è evaporata e sono dorati. Unisci le foglioline di timo.", "minuti": 7}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti, girandole a metà se usi la padella.", "minuti": 3}, {"titolo": "Componi i crostoni", "istruzioni": "Spalma la ricotta sul pane e distribuisci sopra i funghi. Condisci il radicchio con l'olio rimasto e l'aceto e servilo sopra o accanto.", "minuti": 0}], "consigli": ["Non lavare i funghi sotto l'acqua: la assorbono e in padella lessano invece di dorarsi."], "conservazione": "I funghi cotti si conservano 1 giorno in frigorifero; componi i crostoni al momento."}}, "spuntino2": {"titolo": "Kiwi e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 175, "p": 17, "c": 28, "g": 1, "f": 4}, "voci": "150 g di kiwi, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Merluzzo al cartoccio con carote e finocchio", "descrizione": "Cuoce nel suo vapore e resta tenerissimo.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 395, "p": 41, "c": 32, "g": 11, "f": 10}, "ingredienti_principali": ["filetto di merluzzo", "pane integrale", "carote", "finocchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "filetto di merluzzo", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "finocchio", "quantita": "150 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "2 fette"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["carta forno", "teglia"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 190 °C (statico). Taglia le carote a rondelle di 2 mm e il finocchio a fettine sottili: devono essere fini, perché cuociono poco.", "minuti": 0}, {"titolo": "Chiudi il cartoccio", "istruzioni": "Stendi un foglio di carta forno di 40 cm. Metti le verdure al centro, sopra il merluzzo, poi l'olio, il timo, le fette di limone, il sale e 2 cucchiai d'acqua. Unisci i lembi e arrotolali stretti, così il vapore non esce.", "minuti": 0}, {"titolo": "Cuoci", "istruzioni": "Inforna il cartoccio sulla teglia. È pronto quando si è gonfiato; dentro, il pesce deve essere bianco opaco e sfaldarsi.", "minuti": 20}, {"titolo": "Servi", "istruzioni": "Apri il cartoccio con attenzione per il vapore, aspetta 2 minuti e servi con il pane.", "minuti": 2}], "consigli": ["Vanno bene anche nasello, platessa o branzino, con gli stessi tempi."], "conservazione": "Meglio appena fatto."}}}, "ven": {"colazione": {"titolo": "Latte e cereali integrali", "descrizione": "La più rapida della settimana.", "tempo_minuti": 4, "difficolta": "facile", "piano": true, "nutr": {"kcal": 210, "p": 9, "c": 36, "g": 3, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "cereali integrali"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 2, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cereali integrali", "quantita": "40 g", "note": "senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "tazza grande"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Unisci", "istruzioni": "Versa il latte nella tazza e aggiungi i cereali poco prima di mangiare, così restano croccanti.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Arancia e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 5, "c": 18, "g": 8, "f": 6}, "voci": "150 g di arancia, 15 g di mandorle"}, "pranzo": {"titolo": "Bruschette integrali con tonno e finocchio croccante", "descrizione": "Niente fornelli, solo il tostapane.", "tempo_minuti": 12, "difficolta": "facile", "piano": true, "nutr": {"kcal": 400, "p": 23, "c": 40, "g": 16, "f": 10}, "ingredienti_principali": ["pane integrale", "tonno all'olio di oliva", "finocchio", "insalata verde"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 4, "ingredienti": [{"nome": "pane integrale", "quantita": "80 g (2 fette)"}, {"nome": "tonno all'olio di oliva", "quantita": "1 scatoletta piccola (52 g sgocciolato)"}, {"nome": "finocchio", "quantita": "200 g (1 piccolo)"}, {"nome": "insalata verde", "quantita": "50 g"}, {"nome": "aceto di mele", "quantita": "1 cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino", "tostapane o padella", "ciotola"], "passaggi": [{"titolo": "Sgocciola il tonno", "istruzioni": "Versa il tonno nel colino e lascialo sgocciolare bene, poi sbriciolalo con una forchetta.", "minuti": 2}, {"titolo": "Prepara l'insalata", "istruzioni": "Affetta il finocchio il più sottile possibile, lava e asciuga l'insalata. Condisci tutto nella ciotola con l'olio, l'aceto e il sale.", "minuti": 0}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti.", "minuti": 3}, {"titolo": "Componi", "istruzioni": "Distribuisci il tonno sulle bruschette, completa con il prezzemolo e servi con l'insalata di finocchio.", "minuti": 0}], "consigli": ["Se il finocchio ha le barbine verdi, tritale e usale al posto del prezzemolo."], "conservazione": "Da preparare al momento."}}, "spuntino2": {"titolo": "Uva e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 16, "c": 33, "g": 0, "f": 1}, "voci": "150 g di uva, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Frittata al forno con spinaci", "descrizione": "Alta e soffice, senza doverla girare.", "tempo_minuti": 26, "difficolta": "facile", "piano": true, "nutr": {"kcal": 415, "p": 26, "c": 30, "g": 21, "f": 8}, "ingredienti_principali": ["uova", "pane integrale", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 18, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "spinaci freschi", "quantita": "250 g"}, {"nome": "noce moscata", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella con coperchio", "ciotola", "pirofila piccola (circa 16 cm)"], "passaggi": [{"titolo": "Appassisci gli spinaci", "istruzioni": "Accendi il forno a 180 °C (statico). Metti gli spinaci lavati nella padella senza aggiungere acqua, copri e cuoci a fuoco medio finché sono appassiti.", "minuti": 3}, {"titolo": "Strizza e trita", "istruzioni": "Strizzali bene tra le mani o in un colino, poi tritali grossolanamente: se restano bagnati la frittata non rassoda.", "minuti": 0}, {"titolo": "Prepara il composto", "istruzioni": "Sbatti le uova con il sale e la noce moscata, poi unisci gli spinaci.", "minuti": 0}, {"titolo": "Cuoci in forno", "istruzioni": "Ungi la pirofila con metà dell'olio, versa il composto e inforna. È pronta quando è soda al centro e dorata in superficie.", "minuti": 15}, {"titolo": "Servi", "istruzioni": "Lasciala riposare, condisci con l'olio rimasto a crudo e servi con il pane.", "minuti": 3}], "consigli": ["Con gli spinaci surgelati usa 200 g, scongelati e strizzati."], "conservazione": "In frigorifero fino a 1 giorno; buona anche a temperatura ambiente."}}}, "sab": {"colazione": {"titolo": "Fette biscottate integrali con marmellata", "descrizione": "Con un velo di burro di arachidi, se ti va.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 290, "p": 12, "c": 43, "g": 7, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "fette biscottate integrali", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "fette biscottate integrali", "quantita": "40 g (4-5 fette)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le fette", "istruzioni": "Spalma un velo di burro di arachidi e sopra la marmellata, dividendola tra le fette.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Uva", "semplice": true, "piano": true, "nutr": {"kcal": 105, "p": 1, "c": 27, "g": 0, "f": 1}, "voci": "150 g di uva"}, "pranzo": {"titolo": "Straccetti di tacchino al limone con carote al forno", "descrizione": "Il secondo scelto per il sabato: carne magra.", "tempo_minuti": 37, "difficolta": "facile", "piano": true, "nutr": {"kcal": 500, "p": 55, "c": 42, "g": 13, "f": 11}, "ingredienti_principali": ["petto di tacchino", "pane integrale", "carote"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 27, "ingredienti": [{"nome": "petto di tacchino", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "250 g"}, {"nome": "rosmarino", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "mezzo (succo e scorza)"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "padella antiaderente", "tagliere"], "passaggi": [{"titolo": "Prepara le carote", "istruzioni": "Accendi il forno a 200 °C (statico). Pela le carote e tagliale a bastoncini spessi 1 cm.", "minuti": 0}, {"titolo": "Cuoci le carote", "istruzioni": "Disponile sulla teglia con metà dell'olio, il rosmarino e il sale. Inforna e girale a metà cottura: sono pronte quando sono tenere e dorate sui bordi.", "minuti": 25}, {"titolo": "Taglia il tacchino", "istruzioni": "Taglia il petto a strisce larghe 1 cm.", "minuti": 0}, {"titolo": "Cuoci gli straccetti", "istruzioni": "Scalda bene la padella a fuoco medio-alto con l'olio rimasto. Aggiungi il tacchino e cuoci mescolando finché è dorato fuori e bianco all'interno, senza parti rosa.", "minuti": 5}, {"titolo": "Profuma", "istruzioni": "Versa il succo di limone, lascia sfumare e spegni. Completa con la scorza grattugiata e servi con le carote e il pane.", "minuti": 1}], "consigli": ["Non salare il tacchino prima della cottura: perde acqua e si asciuga."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Arancia", "semplice": true, "piano": true, "nutr": {"kcal": 70, "p": 1, "c": 18, "g": 0, "f": 4}, "voci": "150 g di arancia"}, "cena": null}, "dom": {"colazione": {"titolo": "Gallette con ricotta e marmellata", "descrizione": "Fresca e leggera, con il latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 265, "p": 11, "c": 43, "g": 5, "f": 1}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma la ricotta sulle gallette e completa con la marmellata.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kaki e noci", "semplice": true, "piano": true, "nutr": {"kcal": 210, "p": 3, "c": 29, "g": 11, "f": 6}, "voci": "150 g di kaki, 15 g di noci"}, "pranzo": {"titolo": "Quinoa con ceci, spinaci e curcuma", "descrizione": "Colorata, completa, senza glutine.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 575, "p": 27, "c": 67, "g": 19, "f": 17}, "ingredienti_principali": ["quinoa", "ceci in scatola o in vetro", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "quinoa", "quantita": "70 g"}, {"nome": "ceci in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "spinaci freschi", "quantita": "200 g"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino a maglie fitte", "pentolino con coperchio", "padella larga con coperchio"], "passaggi": [{"titolo": "Sciacqua la quinoa", "istruzioni": "Mettila nel colino e sciacquala sotto l'acqua corrente per 30 secondi, strofinandola con le dita: toglie il retrogusto amaro.", "minuti": 0}, {"titolo": "Cuoci la quinoa", "istruzioni": "Versala nel pentolino con 150 ml d'acqua, la curcuma e il sale. Porta a bollore, poi copri e abbassa il fuoco al minimo. È pronta quando l'acqua è assorbita e si vede il germoglio bianco attorno al chicco.", "minuti": 12}, {"titolo": "Lascia riposare", "istruzioni": "Spegni e lascia la quinoa coperta, poi sgranala con una forchetta.", "minuti": 5}, {"titolo": "Cuoci spinaci e ceci", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi gli spinaci lavati, copri finché sono appassiti, poi unisci i ceci sciacquati e scaldali mescolando.", "minuti": 5}, {"titolo": "Unisci", "istruzioni": "Aggiungi la quinoa, il succo di limone e l'olio rimasto a crudo. Mescola e servi tiepido.", "minuti": 0}], "consigli": ["Se hai ceci secchi usane 50 g: ammollo di 12 ore e 40 minuti di cottura."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Pera e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 165, "p": 7, "c": 22, "g": 6, "f": 5}, "voci": "150 g di pera, 20 g di parmigiano"}, "cena": {"titolo": "Scaloppine di vitello al limone e salvia con verza stufata", "descrizione": "La cena della domenica, senza farina.", "tempo_minuti": 28, "difficolta": "media", "piano": true, "nutr": {"kcal": 500, "p": 51, "c": 33, "g": 16, "f": 10}, "ingredienti_principali": ["fettine di vitello", "gallette di mais o di riso", "cavolo verza"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "fettine di vitello", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolo verza", "quantita": "300 g"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "succo di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["casseruola con coperchio", "padella antiaderente larga"], "passaggi": [{"titolo": "Taglia la verza", "istruzioni": "Elimina il torsolo e taglia le foglie a listarelle di 1 cm.", "minuti": 0}, {"titolo": "Stufa la verza", "istruzioni": "Mettila nella casseruola con metà dell'olio, 4 cucchiai d'acqua e il sale. Copri e cuoci a fuoco medio-basso mescolando ogni tanto, finché è tenera.", "minuti": 15}, {"titolo": "Cuoci le scaloppine", "istruzioni": "Scalda la padella a fuoco medio-alto con l'olio rimasto e la salvia. Cuoci le fettine 2 minuti per lato, finché sono dorate.", "minuti": 4}, {"titolo": "Fai la salsa", "istruzioni": "Versa il succo di limone e 2 cucchiai d'acqua, muovi la padella e lascia restringere fino a ottenere una salsina che vela la carne.", "minuti": 1}, {"titolo": "Servi", "istruzioni": "Disponi le scaloppine con la loro salsa accanto alla verza e accompagna con le gallette.", "minuti": 0}], "consigli": ["Se le fettine si arricciano in cottura, incidi i bordi con due piccoli tagli."], "conservazione": "In frigorifero fino a 1 giorno."}}}};
+const SETTIMANA = {"lun": {"colazione": {"titolo": "Gallette con marmellata e burro di arachidi", "descrizione": "Con una tazza di latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 260, "p": 9, "c": 42, "g": 6, "f": 2}, "spesa": [["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["marmellata senza zuccheri aggiunti", 20, "g", "Dispensa", ""], ["burro di arachidi 100%", 5, "g", "Dispensa", ""]], "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma su ogni galletta un velo sottile di burro di arachidi e sopra la marmellata, dividendola in parti uguali.", "minuti": 0}], "consigli": ["Se le gallette sono poco croccanti, passale 1 minuto in padella asciutta a fuoco basso."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Mela e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 4, "c": 21, "g": 9, "f": 5}, "spesa": [["mela", 150, "g", "Frutta e verdura", ""], ["mandorle", 15, "g", "Frutta secca", ""]], "voci": "150 g di mela, 15 g di mandorle"}, "pranzo": {"titolo": "Riso basmati con zucca arrosto, salvia e feta", "descrizione": "Dolce e sapido insieme.", "tempo_minuti": 35, "difficolta": "facile", "piano": true, "nutr": {"kcal": 640, "p": 23, "c": 67, "g": 31, "f": 4}, "spesa": [["riso basmati", 70, "g", "Pane, cereali e legumi", ""], ["feta", 100, "g", "Latte, uova e formaggi", ""], ["zucca", 250, "g", "Frutta e verdura", ""], ["salvia", 0, "", "Frutta e verdura", "4 foglie"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["riso basmati", "feta", "zucca"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 25, "ingredienti": [{"nome": "riso basmati", "quantita": "70 g"}, {"nome": "feta", "quantita": "100 g"}, {"nome": "zucca", "quantita": "250 g", "note": "già pulita"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "colino"], "passaggi": [{"titolo": "Prepara la zucca", "istruzioni": "Accendi il forno a 200 °C (statico). Taglia la zucca a cubetti di circa 2 cm.", "minuti": 0}, {"titolo": "Arrostisci la zucca", "istruzioni": "Distribuisci i cubetti sulla teglia con metà dell'olio (1 cucchiaino abbondante), la salvia spezzettata e il sale. Inforna nel ripiano centrale: è pronta quando è morbida alla forchetta e dorata sui bordi.", "minuti": 25}, {"titolo": "Cuoci il riso", "istruzioni": "Mentre la zucca cuoce, sciacqua il riso nel colino. Lessalo in acqua bollente poco salata per il tempo indicato sulla confezione, poi scolalo.", "minuti": 11}, {"titolo": "Componi il piatto", "istruzioni": "Unisci riso e zucca, sbriciola sopra la feta con le mani e completa con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["La feta è già salata: non aggiungere altro sale al piatto finito."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Pera e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 16, "c": 28, "g": 0, "f": 5}, "spesa": [["pera", 150, "g", "Frutta e verdura", ""], ["yogurt greco bianco 0%", 150, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di pera, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Uova strapazzate cremose con cavolfiore arrosto alla curcuma", "descrizione": "Morbide le uova, croccante il cavolfiore.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 420, "p": 26, "c": 34, "g": 20, "f": 8}, "spesa": [["uova", 2, "pz", "Latte, uova e formaggi", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["cavolfiore", 300, "g", "Frutta e verdura", ""], ["curcuma", 0, "", "Dispensa", "mezzo cucchiaino"], ["prezzemolo", 0, "", "Frutta e verdura", "1 cucchiaio tritato"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["uova", "gallette di mais o di riso", "cavolfiore"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 22, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolfiore", "quantita": "300 g", "note": "solo le cimette"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "ciotola", "padella antiaderente", "spatola"], "passaggi": [{"titolo": "Prepara il cavolfiore", "istruzioni": "Accendi il forno a 200 °C (statico). Dividi il cavolfiore in cimette piccole, di circa 3 cm.", "minuti": 0}, {"titolo": "Arrostisci", "istruzioni": "Condisci le cimette sulla teglia con metà dell'olio, la curcuma e il sale. Inforna: sono pronte quando sono dorate e tenere alla forchetta.", "minuti": 20}, {"titolo": "Sbatti le uova", "istruzioni": "Rompi le uova nella ciotola e sbattile con una forchetta per 20 secondi.", "minuti": 0}, {"titolo": "Cuoci le uova", "istruzioni": "Scalda l'olio rimasto nella padella a fuoco basso. Versa le uova e mescola lentamente con la spatola. Toglile dal fuoco quando sono rapprese ma ancora morbide e lucide: finiscono di cuocere nel piatto.", "minuti": 3}, {"titolo": "Servi", "istruzioni": "Completa le uova con il prezzemolo e accompagna con il cavolfiore e le gallette.", "minuti": 0}], "consigli": ["Il fuoco basso è il segreto: a fuoco alto le uova diventano asciutte e gommose."], "conservazione": "Il cavolfiore si conserva 2 giorni in frigorifero; le uova vanno fatte al momento."}}}, "mar": {"colazione": {"titolo": "Porridge di avena alla cannella", "descrizione": "Cremoso, cotto direttamente nel latte.", "tempo_minuti": 7, "difficolta": "facile", "piano": true, "nutr": {"kcal": 220, "p": 11, "c": 31, "g": 5, "f": 4}, "spesa": [["fiocchi di avena", 40, "g", "Pane, cereali e legumi", ""], ["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["cannella in polvere", 0, "", "Dispensa", "1 pizzico"]], "ingredienti_principali": ["fiocchi di avena", "latte vaccino parzialmente scremato"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 1, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "fiocchi di avena", "quantita": "40 g", "note": "scegli quelli certificati senza glutine"}, {"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cannella in polvere", "quantita": "1 pizzico"}], "attrezzatura": ["pentolino", "cucchiaio di legno"], "passaggi": [{"titolo": "Cuoci l'avena", "istruzioni": "Metti i fiocchi e il latte nel pentolino. Cuoci a fuoco basso mescolando spesso, finché il composto è cremoso e i fiocchi sono morbidi.", "minuti": 5}, {"titolo": "Lascia riposare", "istruzioni": "Versa in una ciotola, spolvera con la cannella e lascia riposare un paio di minuti: si addensa ancora.", "minuti": 2}], "consigli": ["Se diventa troppo denso, aggiungi 1 o 2 cucchiai d'acqua, non altro latte."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Pera e noci", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 3, "c": 23, "g": 10, "f": 6}, "spesa": [["pera", 150, "g", "Frutta e verdura", ""], ["noci", 15, "g", "Frutta secca", ""]], "voci": "150 g di pera, 15 g di noci"}, "pranzo": {"titolo": "Pasta di mais con gamberetti e broccoli", "descrizione": "Un primo completo, profumato di limone.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 550, "p": 45, "c": 63, "g": 13, "f": 8}, "spesa": [["pasta di mais", 70, "g", "Pane, cereali e legumi", ""], ["gamberetti sgusciati", 200, "g", "Carne e pesce", ""], ["broccoli", 200, "g", "Frutta e verdura", ""], ["prezzemolo", 0, "", "Frutta e verdura", "1 cucchiaio tritato"], ["limone", 0, "", "Frutta e verdura", "mezzo limone"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["pasta di mais", "gamberetti sgusciati", "broccoli"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 17, "ingredienti": [{"nome": "pasta di mais", "quantita": "70 g"}, {"nome": "gamberetti sgusciati", "quantita": "200 g"}, {"nome": "broccoli", "quantita": "200 g", "note": "solo le cimette"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "scorza di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola da 3 litri", "padella larga", "scolapasta"], "passaggi": [{"titolo": "Porta l'acqua a bollore", "istruzioni": "Riempi la pentola con 2 litri d'acqua, copri e metti a fuoco alto. Quando bolle aggiungi 1 cucchiaino di sale grosso. Intanto dividi i broccoli in cimette di 2-3 cm.", "minuti": 8}, {"titolo": "Cuoci pasta e broccoli", "istruzioni": "Versa la pasta e mescola. Dopo 3 minuti aggiungi le cimette nella stessa pentola e prosegui fino al tempo indicato sulla confezione: la pasta deve restare soda, i broccoli verde vivo.", "minuti": 9}, {"titolo": "Salta i gamberetti", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio per 1 minuto. Aggiungi i gamberetti e cuoci mescolando finché sono rosa e opachi: non di più, o diventano gommosi.", "minuti": 3}, {"titolo": "Unisci", "istruzioni": "Scola pasta e broccoli tenendo 2 cucchiai di acqua di cottura. Versa tutto nella padella, mescola 1 minuto a fuoco basso, spegni e completa con l'olio rimasto, il prezzemolo e la scorza di limone.", "minuti": 1}], "consigli": ["La pasta di mais scuoce in fretta: assaggiala 1 minuto prima del tempo indicato."], "conservazione": "Meglio appena fatta."}}, "spuntino2": {"titolo": "Clementine e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 155, "p": 16, "c": 24, "g": 0, "f": 3}, "spesa": [["clementine", 150, "g", "Frutta e verdura", ""], ["yogurt greco bianco 0%", 150, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di clementine, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Salmone al forno con fagiolini al limone", "descrizione": "Il pesce grasso della settimana, cotto senza aggiungere grassi.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 545, "p": 35, "c": 35, "g": 28, "f": 8}, "spesa": [["filetto di salmone", 150, "g", "Carne e pesce", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["fagiolini", 250, "g", "Frutta e verdura", ""], ["limone", 0, "", "Frutta e verdura", "mezzo (2 fette e la scorza)"], ["aneto o prezzemolo", 0, "", "Frutta e verdura", "1 cucchiaio tritato"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["filetto di salmone", "gallette di mais o di riso", "fagiolini"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "filetto di salmone", "quantita": "150 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "fagiolini", "quantita": "250 g"}, {"nome": "limone", "quantita": "mezzo (2 fette e la scorza)"}, {"nome": "aneto o prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "scolapasta"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 180 °C (statico) e metti sul fuoco una pentola d'acqua. Elimina le due punte dei fagiolini.", "minuti": 0}, {"titolo": "Cuoci il salmone", "istruzioni": "Appoggia il filetto sulla teglia con la pelle verso il basso, sala appena e copri con le fette di limone. Inforna: è pronto quando la polpa è rosa opaco e si sfalda toccandola con la forchetta.", "minuti": 14}, {"titolo": "Lessa i fagiolini", "istruzioni": "Quando l'acqua bolle salala poco e cuoci i fagiolini: devono essere teneri ma ancora di un verde vivo. Scolali.", "minuti": 8}, {"titolo": "Condisci e servi", "istruzioni": "Condisci i fagiolini con l'olio, la scorza di limone e le erbe. Servi con il salmone e le gallette.", "minuti": 0}], "consigli": ["Fuori stagione vanno benissimo i fagiolini surgelati: stessa cottura, 2 minuti in più."], "conservazione": "Il salmone cotto si conserva 1 giorno in frigorifero."}}}, "mer": {"colazione": {"titolo": "Pancake di avena con marmellata", "descrizione": "Tre pancake soffici, senza grassi in cottura.", "tempo_minuti": 11, "difficolta": "facile", "piano": true, "nutr": {"kcal": 300, "p": 16, "c": 44, "g": 6, "f": 5}, "spesa": [["farina di avena", 45, "g", "Pane, cereali e legumi", ""], ["latte parzialmente scremato", 30, "ml", "Latte, uova e formaggi", ""], ["uova", 1, "pz", "Latte, uova e formaggi", ""], ["marmellata senza zuccheri aggiunti", 20, "g", "Dispensa", ""], ["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""]], "ingredienti_principali": ["farina di avena", "latte (per l'impasto)", "albume", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "farina di avena", "quantita": "45 g", "note": "certificata senza glutine"}, {"nome": "latte (per l'impasto)", "quantita": "30 ml"}, {"nome": "albume", "quantita": "1"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "latte vaccino parzialmente scremato (da bere)", "quantita": "150 ml"}], "attrezzatura": ["ciotola", "frusta o forchetta", "padella antiaderente piccola", "spatola"], "passaggi": [{"titolo": "Prepara la pastella", "istruzioni": "Nella ciotola mescola la farina di avena, i 30 ml di latte e l'albume finché la pastella è liscia e senza grumi. Lasciala riposare.", "minuti": 2}, {"titolo": "Cuoci i pancake", "istruzioni": "Scalda la padella antiaderente a fuoco medio-basso, senza olio. Versa la pastella in 3 dischi. Girali quando in superficie compaiono le bollicine e sotto sono dorati, poi cuoci l'altro lato per lo stesso tempo.", "minuti": 4}, {"titolo": "Servi", "istruzioni": "Spalma la marmellata sui pancake e accompagna con il latte tiepido.", "minuti": 0}], "consigli": ["Se la pastella è troppo densa per essere versata, aggiungi 1 cucchiaio d'acqua."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kiwi e nocciole", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 4, "c": 23, "g": 10, "f": 6}, "spesa": [["kiwi", 150, "g", "Frutta e verdura", ""], ["nocciole", 15, "g", "Frutta secca", ""]], "voci": "150 g di kiwi, 15 g di nocciole"}, "pranzo": {"titolo": "Grano saraceno con lenticchie, carote e sedano", "descrizione": "Un piatto unico rustico, senza soffritto.", "tempo_minuti": 38, "difficolta": "facile", "piano": true, "nutr": {"kcal": 520, "p": 22, "c": 73, "g": 13, "f": 19}, "spesa": [["grano saraceno in chicchi", 70, "g", "Pane, cereali e legumi", ""], ["lenticchie in scatola o in vetro", 150, "g", "Pane, cereali e legumi", ""], ["carote", 100, "g", "Frutta e verdura", ""], ["sedano", 50, "g", "Frutta e verdura", ""], ["passata di pomodoro", 50, "g", "Dispensa", ""], ["alloro", 0, "", "Dispensa", "1 foglia"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["grano saraceno in chicchi", "lenticchie in scatola o in vetro", "carote", "sedano"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 30, "ingredienti": [{"nome": "grano saraceno in chicchi", "quantita": "70 g"}, {"nome": "lenticchie in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "sedano", "quantita": "50 g (1 costa)"}, {"nome": "passata di pomodoro", "quantita": "50 g (3 cucchiai)"}, {"nome": "alloro", "quantita": "1 foglia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola media", "casseruola con coperchio", "colino"], "passaggi": [{"titolo": "Lessa il grano saraceno", "istruzioni": "Sciacqua i chicchi nel colino. Lessali in acqua bollente poco salata finché sono teneri ma ancora interi, poi scolali.", "minuti": 15}, {"titolo": "Taglia le verdure", "istruzioni": "Taglia carote e sedano a dadini di circa mezzo centimetro.", "minuti": 0}, {"titolo": "Stufa le verdure", "istruzioni": "Metti i dadini nella casseruola con metà dell'olio e 3 cucchiai d'acqua. Copri e cuoci a fuoco medio-basso finché sono morbidi.", "minuti": 8}, {"titolo": "Aggiungi le lenticchie", "istruzioni": "Sciacqua le lenticchie sotto l'acqua. Uniscile alle verdure con la passata, l'alloro e mezzo bicchiere d'acqua (100 ml). Cuoci a fuoco basso senza coperchio, finché il sugo si è ristretto.", "minuti": 8}, {"titolo": "Completa", "istruzioni": "Togli l'alloro, unisci il grano saraceno, mescola e condisci con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["Se hai lenticchie secche usane 50 g e lessale a parte per 25-30 minuti."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Mela e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 7, "c": 21, "g": 6, "f": 3}, "spesa": [["mela", 150, "g", "Frutta e verdura", ""], ["parmigiano", 20, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di mela, 20 g di parmigiano"}, "cena": {"titolo": "Petto di pollo alla piastra con bietole al limone", "descrizione": "Semplice, se il pollo resta succoso.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 455, "p": 53, "c": 34, "g": 12, "f": 5}, "spesa": [["petto di pollo senza pelle", 200, "g", "Carne e pesce", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["bietole", 300, "g", "Frutta e verdura", ""], ["limone", 0, "", "Frutta e verdura", "1 cucchiaio"], ["origano", 0, "", "Dispensa", "1 pizzico"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["petto di pollo senza pelle", "gallette di mais o di riso", "bietole"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "petto di pollo senza pelle", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "bietole", "quantita": "300 g"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "origano", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["piastra o padella antiaderente", "padella larga con coperchio", "tagliere"], "passaggi": [{"titolo": "Prepara il pollo", "istruzioni": "Se le fette sono più spesse di 1,5 cm, tagliale a metà nello spessore. Asciugale con carta da cucina.", "minuti": 0}, {"titolo": "Prepara le bietole", "istruzioni": "Lavale e tagliale a strisce di 3 cm, tenendo separate le coste bianche dalle foglie.", "minuti": 0}, {"titolo": "Cuoci il pollo", "istruzioni": "Scalda la piastra a fuoco medio-alto per 2 minuti, senza grassi. Cuoci il pollo 4 minuti per lato senza muoverlo: è pronto quando all'interno è bianco e il succo che esce è trasparente.", "minuti": 8}, {"titolo": "Cuoci le bietole", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi prima le coste, dopo 3 minuti le foglie, copri e cuoci finché sono appassite.", "minuti": 7}, {"titolo": "Condisci", "istruzioni": "Lascia riposare il pollo 2 minuti, poi condiscilo con l'olio rimasto, il limone, l'origano e il sale. Servi con le bietole e le gallette.", "minuti": 2}], "consigli": ["Il riposo finale serve: i succhi si ridistribuiscono e la carne resta morbida."], "conservazione": "In frigorifero fino a 1 giorno."}}}, "gio": {"colazione": {"titolo": "Pane integrale tostato con ricotta e marmellata", "descrizione": "Una colazione che sazia a lungo.", "tempo_minuti": 6, "difficolta": "facile", "piano": true, "nutr": {"kcal": 255, "p": 13, "c": 39, "g": 5, "f": 4}, "spesa": [["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["pane integrale", 50, "g", "Pane, cereali e legumi", ""], ["ricotta vaccina light", 30, "g", "Latte, uova e formaggi", ""], ["marmellata senza zuccheri aggiunti", 20, "g", "Dispensa", ""]], "ingredienti_principali": ["latte vaccino parzialmente scremato", "pane integrale", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 3, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["tostapane o padella", "pentolino"], "passaggi": [{"titolo": "Tosta il pane", "istruzioni": "Tosta la fetta nel tostapane, oppure in padella asciutta a fuoco medio girandola a metà, finché è dorata e croccante fuori.", "minuti": 3}, {"titolo": "Farcisci", "istruzioni": "Spalma prima la ricotta e poi la marmellata. Scalda il latte finché è tiepido.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Clementine e anacardi", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 4, "c": 23, "g": 7, "f": 3}, "spesa": [["clementine", 150, "g", "Frutta e verdura", ""], ["anacardi", 15, "g", "Frutta secca", ""]], "voci": "150 g di clementine, 15 g di anacardi"}, "pranzo": {"titolo": "Crostoni integrali con ricotta, funghi al timo e radicchio", "descrizione": "Caldo e croccante, pronto in venti minuti.", "tempo_minuti": 18, "difficolta": "facile", "piano": true, "nutr": {"kcal": 460, "p": 27, "c": 47, "g": 18, "f": 13}, "spesa": [["pane integrale", 90, "g", "Pane, cereali e legumi", ""], ["ricotta vaccina light", 100, "g", "Latte, uova e formaggi", ""], ["funghi champignon", 250, "g", "Frutta e verdura", ""], ["radicchio", 50, "g", "Frutta e verdura", ""], ["timo", 0, "", "Frutta e verdura", "1 rametto"], ["aceto di mele", 0, "", "Dispensa", "qualche goccia"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["pane integrale", "ricotta vaccina light", "funghi champignon", "radicchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 10, "ingredienti": [{"nome": "pane integrale", "quantita": "90 g (2-3 fette)"}, {"nome": "ricotta vaccina light", "quantita": "100 g"}, {"nome": "funghi champignon", "quantita": "250 g"}, {"nome": "radicchio", "quantita": "50 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "aceto di mele", "quantita": "qualche goccia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella larga", "tostapane o padella", "ciotolina"], "passaggi": [{"titolo": "Prepara le verdure", "istruzioni": "Pulisci i funghi con un panno umido e affettali a 3 mm. Taglia il radicchio a listarelle sottili.", "minuti": 0}, {"titolo": "Cuoci i funghi", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio-alto. Aggiungi i funghi e il sale e cuoci mescolando ogni tanto: sono pronti quando l'acqua è evaporata e sono dorati. Unisci le foglioline di timo.", "minuti": 7}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti, girandole a metà se usi la padella.", "minuti": 3}, {"titolo": "Componi i crostoni", "istruzioni": "Spalma la ricotta sul pane e distribuisci sopra i funghi. Condisci il radicchio con l'olio rimasto e l'aceto e servilo sopra o accanto.", "minuti": 0}], "consigli": ["Non lavare i funghi sotto l'acqua: la assorbono e in padella lessano invece di dorarsi."], "conservazione": "I funghi cotti si conservano 1 giorno in frigorifero; componi i crostoni al momento."}}, "spuntino2": {"titolo": "Kiwi e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 175, "p": 17, "c": 28, "g": 1, "f": 4}, "spesa": [["kiwi", 150, "g", "Frutta e verdura", ""], ["yogurt greco bianco 0%", 150, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di kiwi, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Merluzzo al cartoccio con carote e finocchio", "descrizione": "Cuoce nel suo vapore e resta tenerissimo.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 395, "p": 41, "c": 32, "g": 11, "f": 10}, "spesa": [["filetto di merluzzo", 200, "g", "Carne e pesce", ""], ["pane integrale", 50, "g", "Pane, cereali e legumi", ""], ["carote", 100, "g", "Frutta e verdura", ""], ["finocchio", 150, "g", "Frutta e verdura", ""], ["timo", 0, "", "Frutta e verdura", "1 rametto"], ["limone", 0, "", "Frutta e verdura", "2 fette"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["filetto di merluzzo", "pane integrale", "carote", "finocchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "filetto di merluzzo", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "finocchio", "quantita": "150 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "2 fette"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["carta forno", "teglia"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 190 °C (statico). Taglia le carote a rondelle di 2 mm e il finocchio a fettine sottili: devono essere fini, perché cuociono poco.", "minuti": 0}, {"titolo": "Chiudi il cartoccio", "istruzioni": "Stendi un foglio di carta forno di 40 cm. Metti le verdure al centro, sopra il merluzzo, poi l'olio, il timo, le fette di limone, il sale e 2 cucchiai d'acqua. Unisci i lembi e arrotolali stretti, così il vapore non esce.", "minuti": 0}, {"titolo": "Cuoci", "istruzioni": "Inforna il cartoccio sulla teglia. È pronto quando si è gonfiato; dentro, il pesce deve essere bianco opaco e sfaldarsi.", "minuti": 20}, {"titolo": "Servi", "istruzioni": "Apri il cartoccio con attenzione per il vapore, aspetta 2 minuti e servi con il pane.", "minuti": 2}], "consigli": ["Vanno bene anche nasello, platessa o branzino, con gli stessi tempi."], "conservazione": "Meglio appena fatto."}}}, "ven": {"colazione": {"titolo": "Latte e cereali integrali", "descrizione": "La più rapida della settimana.", "tempo_minuti": 4, "difficolta": "facile", "piano": true, "nutr": {"kcal": 210, "p": 9, "c": 36, "g": 3, "f": 4}, "spesa": [["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["cereali integrali senza zuccheri aggiunti", 40, "g", "Pane, cereali e legumi", ""]], "ingredienti_principali": ["latte vaccino parzialmente scremato", "cereali integrali"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 2, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cereali integrali", "quantita": "40 g", "note": "senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "tazza grande"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Unisci", "istruzioni": "Versa il latte nella tazza e aggiungi i cereali poco prima di mangiare, così restano croccanti.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Arancia e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 5, "c": 18, "g": 8, "f": 6}, "spesa": [["arancia", 150, "g", "Frutta e verdura", ""], ["mandorle", 15, "g", "Frutta secca", ""]], "voci": "150 g di arancia, 15 g di mandorle"}, "pranzo": {"titolo": "Bruschette integrali con tonno e finocchio croccante", "descrizione": "Niente fornelli, solo il tostapane.", "tempo_minuti": 12, "difficolta": "facile", "piano": true, "nutr": {"kcal": 400, "p": 23, "c": 40, "g": 16, "f": 10}, "spesa": [["pane integrale", 80, "g", "Pane, cereali e legumi", ""], ["tonno all'olio di oliva", 1, "pz", "Dispensa", ""], ["finocchio", 200, "g", "Frutta e verdura", ""], ["insalata verde", 50, "g", "Frutta e verdura", ""], ["aceto di mele", 0, "", "Dispensa", "1 cucchiaino"], ["prezzemolo", 0, "", "Frutta e verdura", "1 cucchiaio tritato"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["pane integrale", "tonno all'olio di oliva", "finocchio", "insalata verde"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 4, "ingredienti": [{"nome": "pane integrale", "quantita": "80 g (2 fette)"}, {"nome": "tonno all'olio di oliva", "quantita": "1 scatoletta piccola (52 g sgocciolato)"}, {"nome": "finocchio", "quantita": "200 g (1 piccolo)"}, {"nome": "insalata verde", "quantita": "50 g"}, {"nome": "aceto di mele", "quantita": "1 cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino", "tostapane o padella", "ciotola"], "passaggi": [{"titolo": "Sgocciola il tonno", "istruzioni": "Versa il tonno nel colino e lascialo sgocciolare bene, poi sbriciolalo con una forchetta.", "minuti": 2}, {"titolo": "Prepara l'insalata", "istruzioni": "Affetta il finocchio il più sottile possibile, lava e asciuga l'insalata. Condisci tutto nella ciotola con l'olio, l'aceto e il sale.", "minuti": 0}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti.", "minuti": 3}, {"titolo": "Componi", "istruzioni": "Distribuisci il tonno sulle bruschette, completa con il prezzemolo e servi con l'insalata di finocchio.", "minuti": 0}], "consigli": ["Se il finocchio ha le barbine verdi, tritale e usale al posto del prezzemolo."], "conservazione": "Da preparare al momento."}}, "spuntino2": {"titolo": "Uva e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 16, "c": 33, "g": 0, "f": 1}, "spesa": [["uva", 150, "g", "Frutta e verdura", ""], ["yogurt greco bianco 0%", 150, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di uva, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Frittata al forno con spinaci", "descrizione": "Alta e soffice, senza doverla girare.", "tempo_minuti": 26, "difficolta": "facile", "piano": true, "nutr": {"kcal": 415, "p": 26, "c": 30, "g": 21, "f": 8}, "spesa": [["uova", 2, "pz", "Latte, uova e formaggi", ""], ["pane integrale", 50, "g", "Pane, cereali e legumi", ""], ["spinaci freschi", 250, "g", "Frutta e verdura", ""], ["noce moscata", 0, "", "Dispensa", "1 pizzico"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["uova", "pane integrale", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 18, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "spinaci freschi", "quantita": "250 g"}, {"nome": "noce moscata", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella con coperchio", "ciotola", "pirofila piccola (circa 16 cm)"], "passaggi": [{"titolo": "Appassisci gli spinaci", "istruzioni": "Accendi il forno a 180 °C (statico). Metti gli spinaci lavati nella padella senza aggiungere acqua, copri e cuoci a fuoco medio finché sono appassiti.", "minuti": 3}, {"titolo": "Strizza e trita", "istruzioni": "Strizzali bene tra le mani o in un colino, poi tritali grossolanamente: se restano bagnati la frittata non rassoda.", "minuti": 0}, {"titolo": "Prepara il composto", "istruzioni": "Sbatti le uova con il sale e la noce moscata, poi unisci gli spinaci.", "minuti": 0}, {"titolo": "Cuoci in forno", "istruzioni": "Ungi la pirofila con metà dell'olio, versa il composto e inforna. È pronta quando è soda al centro e dorata in superficie.", "minuti": 15}, {"titolo": "Servi", "istruzioni": "Lasciala riposare, condisci con l'olio rimasto a crudo e servi con il pane.", "minuti": 3}], "consigli": ["Con gli spinaci surgelati usa 200 g, scongelati e strizzati."], "conservazione": "In frigorifero fino a 1 giorno; buona anche a temperatura ambiente."}}}, "sab": {"colazione": {"titolo": "Fette biscottate integrali con marmellata", "descrizione": "Con un velo di burro di arachidi, se ti va.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 290, "p": 12, "c": 43, "g": 7, "f": 4}, "spesa": [["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["fette biscottate integrali", 40, "g", "Pane, cereali e legumi", ""], ["marmellata senza zuccheri aggiunti", 20, "g", "Dispensa", ""], ["burro di arachidi 100%", 5, "g", "Dispensa", ""]], "ingredienti_principali": ["latte vaccino parzialmente scremato", "fette biscottate integrali", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "fette biscottate integrali", "quantita": "40 g (4-5 fette)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le fette", "istruzioni": "Spalma un velo di burro di arachidi e sopra la marmellata, dividendola tra le fette.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Uva", "semplice": true, "piano": true, "nutr": {"kcal": 105, "p": 1, "c": 27, "g": 0, "f": 1}, "spesa": [["uva", 150, "g", "Frutta e verdura", ""]], "voci": "150 g di uva"}, "pranzo": {"titolo": "Straccetti di tacchino al limone con carote al forno", "descrizione": "Il secondo scelto per il sabato: carne magra.", "tempo_minuti": 37, "difficolta": "facile", "piano": true, "nutr": {"kcal": 500, "p": 55, "c": 42, "g": 13, "f": 11}, "spesa": [["petto di tacchino", 200, "g", "Carne e pesce", ""], ["pane integrale", 50, "g", "Pane, cereali e legumi", ""], ["carote", 250, "g", "Frutta e verdura", ""], ["rosmarino", 0, "", "Frutta e verdura", "1 rametto"], ["limone", 0, "", "Frutta e verdura", "mezzo (succo e scorza)"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["petto di tacchino", "pane integrale", "carote"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 27, "ingredienti": [{"nome": "petto di tacchino", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "250 g"}, {"nome": "rosmarino", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "mezzo (succo e scorza)"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "padella antiaderente", "tagliere"], "passaggi": [{"titolo": "Prepara le carote", "istruzioni": "Accendi il forno a 200 °C (statico). Pela le carote e tagliale a bastoncini spessi 1 cm.", "minuti": 0}, {"titolo": "Cuoci le carote", "istruzioni": "Disponile sulla teglia con metà dell'olio, il rosmarino e il sale. Inforna e girale a metà cottura: sono pronte quando sono tenere e dorate sui bordi.", "minuti": 25}, {"titolo": "Taglia il tacchino", "istruzioni": "Taglia il petto a strisce larghe 1 cm.", "minuti": 0}, {"titolo": "Cuoci gli straccetti", "istruzioni": "Scalda bene la padella a fuoco medio-alto con l'olio rimasto. Aggiungi il tacchino e cuoci mescolando finché è dorato fuori e bianco all'interno, senza parti rosa.", "minuti": 5}, {"titolo": "Profuma", "istruzioni": "Versa il succo di limone, lascia sfumare e spegni. Completa con la scorza grattugiata e servi con le carote e il pane.", "minuti": 1}], "consigli": ["Non salare il tacchino prima della cottura: perde acqua e si asciuga."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Arancia", "semplice": true, "piano": true, "nutr": {"kcal": 70, "p": 1, "c": 18, "g": 0, "f": 4}, "spesa": [["arancia", 150, "g", "Frutta e verdura", ""]], "voci": "150 g di arancia"}, "cena": null}, "dom": {"colazione": {"titolo": "Gallette con ricotta e marmellata", "descrizione": "Fresca e leggera, con il latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 265, "p": 11, "c": 43, "g": 5, "f": 1}, "spesa": [["latte parzialmente scremato", 150, "ml", "Latte, uova e formaggi", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["ricotta vaccina light", 30, "g", "Latte, uova e formaggi", ""], ["marmellata senza zuccheri aggiunti", 20, "g", "Dispensa", ""]], "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma la ricotta sulle gallette e completa con la marmellata.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kaki e noci", "semplice": true, "piano": true, "nutr": {"kcal": 210, "p": 3, "c": 29, "g": 11, "f": 6}, "spesa": [["kaki", 150, "g", "Frutta e verdura", ""], ["noci", 15, "g", "Frutta secca", ""]], "voci": "150 g di kaki, 15 g di noci"}, "pranzo": {"titolo": "Quinoa con ceci, spinaci e curcuma", "descrizione": "Colorata, completa, senza glutine.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 575, "p": 27, "c": 67, "g": 19, "f": 17}, "spesa": [["quinoa", 70, "g", "Pane, cereali e legumi", ""], ["ceci in scatola o in vetro", 150, "g", "Pane, cereali e legumi", ""], ["spinaci freschi", 200, "g", "Frutta e verdura", ""], ["curcuma", 0, "", "Dispensa", "mezzo cucchiaino"], ["limone", 0, "", "Frutta e verdura", "1 cucchiaio"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["quinoa", "ceci in scatola o in vetro", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "quinoa", "quantita": "70 g"}, {"nome": "ceci in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "spinaci freschi", "quantita": "200 g"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino a maglie fitte", "pentolino con coperchio", "padella larga con coperchio"], "passaggi": [{"titolo": "Sciacqua la quinoa", "istruzioni": "Mettila nel colino e sciacquala sotto l'acqua corrente per 30 secondi, strofinandola con le dita: toglie il retrogusto amaro.", "minuti": 0}, {"titolo": "Cuoci la quinoa", "istruzioni": "Versala nel pentolino con 150 ml d'acqua, la curcuma e il sale. Porta a bollore, poi copri e abbassa il fuoco al minimo. È pronta quando l'acqua è assorbita e si vede il germoglio bianco attorno al chicco.", "minuti": 12}, {"titolo": "Lascia riposare", "istruzioni": "Spegni e lascia la quinoa coperta, poi sgranala con una forchetta.", "minuti": 5}, {"titolo": "Cuoci spinaci e ceci", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi gli spinaci lavati, copri finché sono appassiti, poi unisci i ceci sciacquati e scaldali mescolando.", "minuti": 5}, {"titolo": "Unisci", "istruzioni": "Aggiungi la quinoa, il succo di limone e l'olio rimasto a crudo. Mescola e servi tiepido.", "minuti": 0}], "consigli": ["Se hai ceci secchi usane 50 g: ammollo di 12 ore e 40 minuti di cottura."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Pera e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 165, "p": 7, "c": 22, "g": 6, "f": 5}, "spesa": [["pera", 150, "g", "Frutta e verdura", ""], ["parmigiano", 20, "g", "Latte, uova e formaggi", ""]], "voci": "150 g di pera, 20 g di parmigiano"}, "cena": {"titolo": "Scaloppine di vitello al limone e salvia con verza stufata", "descrizione": "La cena della domenica, senza farina.", "tempo_minuti": 28, "difficolta": "media", "piano": true, "nutr": {"kcal": 500, "p": 51, "c": 33, "g": 16, "f": 10}, "spesa": [["fettine di vitello", 200, "g", "Carne e pesce", ""], ["gallette di mais o di riso", 4, "pz", "Pane, cereali e legumi", ""], ["cavolo verza", 300, "g", "Frutta e verdura", ""], ["salvia", 0, "", "Frutta e verdura", "4 foglie"], ["limone", 0, "", "Frutta e verdura", "mezzo limone"], ["olio extravergine d'oliva", 10, "ml", "Dispensa", ""]], "ingredienti_principali": ["fettine di vitello", "gallette di mais o di riso", "cavolo verza"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "fettine di vitello", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolo verza", "quantita": "300 g"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "succo di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["casseruola con coperchio", "padella antiaderente larga"], "passaggi": [{"titolo": "Taglia la verza", "istruzioni": "Elimina il torsolo e taglia le foglie a listarelle di 1 cm.", "minuti": 0}, {"titolo": "Stufa la verza", "istruzioni": "Mettila nella casseruola con metà dell'olio, 4 cucchiai d'acqua e il sale. Copri e cuoci a fuoco medio-basso mescolando ogni tanto, finché è tenera.", "minuti": 15}, {"titolo": "Cuoci le scaloppine", "istruzioni": "Scalda la padella a fuoco medio-alto con l'olio rimasto e la salvia. Cuoci le fettine 2 minuti per lato, finché sono dorate.", "minuti": 4}, {"titolo": "Fai la salsa", "istruzioni": "Versa il succo di limone e 2 cucchiai d'acqua, muovi la padella e lascia restringere fino a ottenere una salsina che vela la carne.", "minuti": 1}, {"titolo": "Servi", "istruzioni": "Disponi le scaloppine con la loro salsa accanto alla verza e accompagna con le gallette.", "minuti": 0}], "consigli": ["Se le fettine si arricciano in cottura, incidi i bordi con due piccoli tagli."], "conservazione": "In frigorifero fino a 1 giorno."}}}};
 
 const OGGI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"][new Date().getDay()];
 const state = {
@@ -514,7 +609,7 @@ const state = {
   photos: [],                              // { dataUrl, base64 }
   photosAnalyzed: true,
   ingredients: store.get("ingredients", []),
-  recipes: [],                             // scheda «Dal frigo»
+  recipes: store.get("recipes", []),       // scheda «Dal frigo» (le ultime restano salvate)
   pmRecipes: [],                           // scheda «Per me», dalla foto
   alt: store.get("alt", {}),               // alternative proposte per i pasti della settimana
   altBusy: null,
@@ -825,11 +920,11 @@ function renderKeyWhere() {
 
 /* ---------- Schede ---------- */
 function setTab(tab) {
-  state.tab = tab === "perme" ? "perme" : "frigo";
+  state.tab = ["frigo", "perme", "spesa"].includes(tab) ? tab : "frigo";
   store.set("tab", state.tab);
   $("app").dataset.tab = state.tab;
-  $("tab-frigo").setAttribute("aria-selected", String(state.tab === "frigo"));
-  $("tab-perme").setAttribute("aria-selected", String(state.tab === "perme"));
+  ["frigo", "perme", "spesa"].forEach((x) => $("tab-" + x).setAttribute("aria-selected", String(state.tab === x)));
+  if (state.tab === "spesa") renderSpesa();
 }
 
 /* ---------- Foto (condivise tra le due schede) ---------- */
@@ -1072,12 +1167,17 @@ async function makeRecipes(more) {
     const list = adopt(parseJson(await askModel([{ text: promptRicette(avoid) }], 0.8, "ricette")));
     if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
     state.recipes = more ? state.recipes.concat(list) : list;
+    saveRecipes();
     renderRecipes();
     setStatus($("recipes-status"), "");
   } catch (e) {
     setStatus($("recipes-status"), e.message, "error");
   }
   setBusy(false);
+}
+
+function saveRecipes() {
+  store.set("recipes", state.recipes.map((r) => { const c = Object.assign({}, r); delete c.loading; return c; }));
 }
 
 function renderRecipes() {
@@ -1262,7 +1362,7 @@ function renderPm() {
 
 /* ---------- Pagina della ricetta ---------- */
 let wakeLock = null;
-let timer = null;   // { id, button, label }
+
 
 function promptDettaglio(r) {
   const c = contesto();
@@ -1298,19 +1398,17 @@ async function openRecipe(r) {
   $("detail").hidden = false;
   $("app").classList.add("in-detail");
   window.scrollTo(0, 0);
-  try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}  // schermo acceso mentre cucini
+  keepAwake(true);  // schermo acceso mentre cucini
   setStatus($("detail-status"), "");
   renderDetail(r);
   if (!r.dettaglio) loadDetail(r);
 }
 
 function closeRecipe() {
-  stopTimer();
   state.current = null;
   $("detail").hidden = true;
   $("app").classList.remove("in-detail");
-  try { if (wakeLock) wakeLock.release(); } catch (e) {}
-  wakeLock = null;
+  keepAwake(false);
   window.scrollTo(0, state.scrollBack || 0);
 }
 
@@ -1327,6 +1425,7 @@ async function loadDetail(r) {
     if (n) r.nutr = n;   // la stima fatta sulle dosi esatte è più precisa di quella dell'elenco
     r.loading = false;
     if (r.alt) { saveAlt(); renderWeek(); }
+    if (state.recipes.includes(r)) saveRecipes();
     if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
   } catch (e) {
     r.loading = false;
@@ -1335,7 +1434,6 @@ async function loadDetail(r) {
 }
 
 function renderDetail(r, failed) {
-  stopTimer();
   const d = r.dettaglio;
   const box = $("detail-body");
   box.textContent = "";
@@ -1356,6 +1454,11 @@ function renderDetail(r, failed) {
     }
     return;
   }
+
+  const go = el("button", "primary", "Cucina passo passo");
+  go.type = "button";
+  go.addEventListener("click", () => openCook(r));
+  box.appendChild(go);
 
   if (Array.isArray(d.ingredienti) && d.ingredienti.length) {
     box.appendChild(el("h4", "", "Ingredienti (spunta mentre li prepari)"));
@@ -1386,13 +1489,7 @@ function renderDetail(r, failed) {
       if (s.titolo) li.appendChild(el("span", "step-title", String(s.titolo)));
       li.appendChild(el("span", "", String(s.istruzioni || "")));
       const min = Number(s.minuti) || 0;
-      if (min > 0) {
-        const label = "Avvia timer · " + min + " min";
-        const b = el("button", "small timer", label);
-        b.type = "button";
-        b.addEventListener("click", () => toggleTimer(b, min, label));
-        li.appendChild(b);
-      }
+      if (min > 0) li.appendChild(timerButton(r.titolo + "#" + d.passaggi.indexOf(s), s.titolo || "Passo " + (d.passaggi.indexOf(s) + 1), min));
     }
     ol.appendChild(li);
   });
@@ -1407,51 +1504,371 @@ function renderDetail(r, failed) {
     box.appendChild(el("h4", "", "Se avanza"));
     box.appendChild(el("p", "", String(d.conservazione)));
   }
+  renderTimers();
 }
 
-/* Timer di un passaggio: uno alla volta, con conto alla rovescia sul pulsante. */
-function stopTimer() {
-  if (!timer) return;
-  clearInterval(timer.id);
-  timer.button.classList.remove("running");
-  timer.button.textContent = timer.label;
-  timer = null;
-}
+/* ---------- Timer: più di uno insieme, visibili in una barra in basso ---------- */
+const timers = {};          // chiave -> { label, end, done }
+let tickId = null, audioCtx = null;
 
-function beep(ctx) {
+function unlockAudio() {    // su iPhone l'audio si sblocca solo dopo un tocco
   try {
-    for (let k = 0; k < 3; k++) {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = 880; g.gain.value = 0.2;
-      o.connect(g); g.connect(ctx.destination);
-      o.start(ctx.currentTime + k * 0.4); o.stop(ctx.currentTime + k * 0.4 + 0.25);
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!audioCtx && AC) audioCtx = new AC();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  } catch (e) {}
+}
+
+function beep() {
+  if (!audioCtx) return;
+  try {
+    for (let k = 0; k < 4; k++) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.25;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(audioCtx.currentTime + k * 0.45); o.stop(audioCtx.currentTime + k * 0.45 + 0.28);
     }
   } catch (e) {}
 }
 
-function toggleTimer(button, minutes, label) {
-  const wasThis = timer && timer.button === button;
-  stopTimer();
-  button.classList.remove("done");
-  if (wasThis) return;
-  let ctx = null;
-  try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) ctx = new AC(); } catch (e) {}
-  const end = Date.now() + minutes * 60000;
-  const tick = () => {
-    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
-    if (left === 0) {
-      clearInterval(timer.id); timer = null;
-      button.classList.remove("running"); button.classList.add("done");
-      button.textContent = "Tempo scaduto · tocca per ripartire";
-      if (ctx) beep(ctx);
-      return;
+function fmtLeft(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+
+function toggleTimerKey(key, label, minutes) {
+  if (timers[key]) { delete timers[key]; renderTimers(); return; }
+  unlockAudio();
+  timers[key] = { label: label, end: Date.now() + minutes * 60000, done: false };
+  if (!tickId) tickId = setInterval(tickTimers, 500);
+  renderTimers();
+}
+
+function tickTimers() {
+  let running = 0;
+  for (const k in timers) {
+    const tm = timers[k];
+    if (tm.done) continue;
+    if (Date.now() >= tm.end) { tm.done = true; beep(); speak("Tempo scaduto: " + tm.label); }
+    else running++;
+  }
+  if (!running && tickId) { clearInterval(tickId); tickId = null; }
+  renderTimers();
+}
+
+function renderTimers() {
+  document.querySelectorAll("[data-tkey]").forEach((b) => {
+    const tm = timers[b.dataset.tkey];
+    b.classList.toggle("running", !!tm && !tm.done);
+    b.classList.toggle("done", !!tm && tm.done);
+    b.textContent = !tm ? b.dataset.label : tm.done ? "Tempo scaduto · tocca per chiudere" : fmtLeft(tm.end - Date.now()) + " · tocca per fermare";
+  });
+  const bar = $("timerbar"), keys = Object.keys(timers);
+  bar.textContent = "";
+  bar.hidden = keys.length === 0;
+  document.body.classList.toggle("has-timers", keys.length > 0);
+  keys.forEach((k) => {
+    const tm = timers[k];
+    const chip = el("button", "timer-chip" + (tm.done ? " done" : ""));
+    chip.type = "button";
+    chip.appendChild(el("span", "tc-time", tm.done ? "Fatto" : fmtLeft(tm.end - Date.now())));
+    chip.appendChild(el("span", "tc-label", tm.label));
+    chip.setAttribute("aria-label", (tm.done ? "Tempo scaduto: " : "Timer: ") + tm.label + ". Tocca per chiudere");
+    chip.addEventListener("click", () => { delete timers[k]; renderTimers(); });
+    bar.appendChild(chip);
+  });
+}
+
+function timerButton(key, label, minutes) {
+  const text = "Avvia timer · " + minutes + " min";
+  const b = el("button", "small timer", text);
+  b.type = "button";
+  b.dataset.tkey = key; b.dataset.label = text;
+  b.addEventListener("click", () => toggleTimerKey(key, label, minutes));
+  return b;
+}
+
+/* ---------- Schermo sempre acceso mentre si cucina ---------- */
+async function keepAwake(on) {
+  try {
+    if (on && navigator.wakeLock && !wakeLock) wakeLock = await navigator.wakeLock.request("screen");
+    if (!on && wakeLock) { wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {   // l'iPhone lo toglie quando si cambia app
+  if (document.visibilityState === "visible" && (state.current || state.cook)) { wakeLock = null; keepAwake(true); }
+});
+
+/* ---------- Lettura ad alta voce ---------- */
+let voiceOn = store.get("voice", false);
+function speak(text) {
+  if (!voiceOn || !window.speechSynthesis) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "it-IT"; u.rate = 0.95;
+    const v = speechSynthesis.getVoices().find((x) => /^it/i.test(x.lang));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ---------- Modalità cucina ---------- */
+function ingredientText(x) {
+  if (typeof x === "string") return x;
+  return [x.quantita, x.nome].filter(Boolean).join(" ") + (x.note ? " (" + x.note + ")" : "");
+}
+
+function openCook(r) {
+  if (!r || !r.dettaglio) return;
+  state.cook = { r: r, i: 0 };
+  $("cook").hidden = false;
+  $("app").classList.add("in-cook");
+  window.scrollTo(0, 0);
+  keepAwake(true);
+  renderCook();
+}
+
+function closeCook() {
+  if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) {}
+  state.cook = null;
+  $("cook").hidden = true;
+  $("app").classList.remove("in-cook");
+  window.scrollTo(0, 0);
+}
+
+function renderCook() {
+  const c = state.cook; if (!c) return;
+  const d = c.r.dettaglio, steps = d.passaggi || [], total = steps.length + 1;   // passo 0: gli ingredienti
+  const body = $("cook-body");
+  body.textContent = "";
+  let say = "";
+  if (c.i === 0) {
+    body.appendChild(el("p", "cook-kicker", c.r.titolo));
+    body.appendChild(el("h2", "cook-title", "Prepara gli ingredienti"));
+    const ul = el("ul", "checklist cook-ingr");
+    (d.ingredienti || []).forEach((x, k) => {
+      const li = el("li"), lab = el("label"), cb = el("input"), txt = el("span", "", ingredientText(x));
+      cb.type = "checkbox"; cb.id = "cook-ing-" + k; lab.htmlFor = cb.id;
+      lab.appendChild(cb); lab.appendChild(txt); li.appendChild(lab); ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    if (Array.isArray(d.attrezzatura) && d.attrezzatura.length) body.appendChild(el("p", "muted", "Ti serve: " + d.attrezzatura.join(", ") + "."));
+    say = "Prepara gli ingredienti: " + (d.ingredienti || []).map(ingredientText).join("; ");
+  } else {
+    const s = steps[c.i - 1], st = typeof s === "string" ? { istruzioni: s } : s;
+    body.appendChild(el("p", "cook-kicker", "Passo " + c.i + " di " + steps.length));
+    if (st.titolo) body.appendChild(el("h2", "cook-title", st.titolo));
+    body.appendChild(el("p", "cook-text", String(st.istruzioni || "")));
+    const min = Number(st.minuti) || 0;
+    if (min > 0) body.appendChild(timerButton(c.r.titolo + "#" + (c.i - 1), st.titolo || ("Passo " + c.i), min));
+    say = (st.titolo ? st.titolo + ". " : "") + (st.istruzioni || "");
+  }
+  $("cook-progress").textContent = (c.i + 1) + " / " + total;
+  $("cook-prev").disabled = c.i === 0;
+  $("cook-next").textContent = c.i === total - 1 ? "Fine" : "Avanti";
+  renderTimers();
+  speak(say);
+}
+
+function cookMove(delta) {
+  const c = state.cook; if (!c) return;
+  const total = (c.r.dettaglio.passaggi || []).length + 1;
+  if (delta > 0 && c.i === total - 1) { closeCook(); return; }
+  c.i = Math.min(total - 1, Math.max(0, c.i + delta));
+  renderCook();
+}
+
+/* ---------- Lista della spesa ---------- */
+const REPARTI = ["Frutta e verdura", "Carne e pesce", "Latte, uova e formaggi", "Pane, cereali e legumi", "Frutta secca", "Dispensa", "Aggiunti da te"];
+const DISPENSA_BASE = /olio|aceto|cannella|curcuma|noce moscata|alloro|origano|spezie|^sale/;
+
+function repartoDi(nome) {
+  const n = nome.toLowerCase();
+  if (/pollo|tacchino|vitell|manzo|maiale|arista|salmone|merluzzo|tonno fresco|pesce|gamber|orata|branzino|spigola|sgombro|trota|seppi|calamar|polpo|nasello|platessa|sogliola|alici/.test(n)) return "Carne e pesce";
+  if (/latte|yogurt|uov|albume|ricotta|feta|parmigiano|formaggio|stracchino|mozzarella|burro\b/.test(n)) return "Latte, uova e formaggi";
+  if (/pane|gallett|riso|pasta|quinoa|miglio|saraceno|avena|farro|orzo|cous|cereal|fette biscottate|ceci|lenticch|fagiol(?!ini)|piselli|legumi|polenta|farina/.test(n)) return "Pane, cereali e legumi";
+  if (/mandorl|noci|nocciol|anacard|pistacch/.test(n)) return "Frutta secca";
+  if (/olio|aceto|sale|spezi|cannella|curcuma|origano|alloro|noce moscata|marmellata|passata|tonno|burro di arachidi|miele/.test(n)) return "Dispensa";
+  return "Frutta e verdura";
+}
+
+/* Quantità scritte dal modello («200 g», «1 cucchiaio», «2») → numero e unità, se possibile. */
+function parseQty(q) {
+  const m = /^\s*([\d]+(?:[.,]\d+)?)\s*(kg|g|gr|grammi|ml|l|litri|cl)?\b/i.exec(String(q || ""));
+  if (!m) return null;
+  let n = parseFloat(m[1].replace(",", ".")), u = (m[2] || "").toLowerCase();
+  if (u === "kg") { n *= 1000; u = "g"; } else if (u === "gr" || u === "grammi") u = "g";
+  else if (u === "l" || u === "litri") { n *= 1000; u = "ml"; } else if (u === "cl") { n *= 10; u = "ml"; }
+  else if (!u) u = "pz";
+  return { n: n, u: u };
+}
+
+function vociDi(r) {
+  if (!r) return [];
+  if (Array.isArray(r.spesa)) return r.spesa.map((v) => ({ nome: v[0], n: v[1], u: v[2], rep: v[3], txt: v[4] }));
+  const d = r.dettaglio;
+  if (d && Array.isArray(d.ingredienti)) {
+    return d.ingredienti.filter((x) => x && typeof x === "object" && x.nome && !/^sale\b/i.test(x.nome)).map((x) => {
+      const p = parseQty(x.quantita);
+      return { nome: String(x.nome).toLowerCase().replace(/\s*\(.*?\)/g, "").trim(), n: p ? p.n : 0, u: p ? p.u : "", rep: repartoDi(x.nome), txt: p ? "" : String(x.quantita || "") };
+    });
+  }
+  return (r.ingredienti_principali || []).map((n) => ({ nome: String(n).toLowerCase(), n: 0, u: "", rep: repartoDi(n), txt: "", vago: true }));
+}
+
+function fmtQty(n, u) {
+  if (!n) return "";
+  const nf = (x, d) => x.toLocaleString("it-IT", { maximumFractionDigits: d });
+  if (u === "g") return n >= 1000 ? nf(n / 1000, 2) + " kg" : nf(Math.round(n / 5) * 5 || n, 0) + " g";
+  if (u === "ml") return n >= 1000 ? nf(n / 1000, 2) + " l" : nf(Math.round(n / 5) * 5 || n, 0) + " ml";
+  if (u === "pz") return nf(Math.ceil(n), 0) + (Math.ceil(n) === 1 ? " pezzo" : " pezzi");
+  return nf(n, 1) + " " + u;
+}
+function fmtPiece(nome, n) {   // gallette, uova, scatolette: numero senza «pezzi»
+  if (/uova|gallett/.test(nome)) return Math.ceil(n) + "";
+  if (/tonno/.test(nome)) return Math.ceil(n) + (Math.ceil(n) === 1 ? " scatoletta" : " scatolette");
+  return null;
+}
+
+function giaInCasa(nome) {
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const n = norm(nome), first = n.split(" ")[0].replace(/[ei]$/, "");
+  return state.ingredients.some((f) => {
+    const g = norm(f);
+    return (g.length >= 4 && n.includes(g)) || (first.length >= 4 && g.includes(first));
+  });
+}
+
+function buildSpesa() {
+  const days = store.get("spesa_days", GIORNI.map((g) => g[0]));
+  const map = new Map();
+  let vaghe = 0;
+  days.forEach((d) => PASTI.forEach((pm) => {
+    const r = state.alt[d + "_" + pm[0]] || SETTIMANA[d][pm[0]];
+    vociDi(r).forEach((v) => {
+      if (v.vago) vaghe++;
+      const key = v.nome + "|" + (v.n ? v.u : "");
+      const cur = map.get(key) || { nome: v.nome, n: 0, u: v.u, rep: v.rep, volte: 0, vago: false };
+      cur.n += v.n || 0; cur.volte++; cur.vago = cur.vago || v.vago;
+      map.set(key, cur);
+    });
+  }));
+  store.get("spesa_extra", []).forEach((x) => map.set("extra|" + x, { nome: x, n: 0, u: "", rep: "Aggiunti da te", volte: 1, extra: true }));
+  return { items: Array.from(map.values()), days: days, vaghe: vaghe };
+}
+
+function qtyLabel(it) {
+  if (it.extra) return "";
+  if (it.n) return (it.u === "pz" && fmtPiece(it.nome, it.n)) || fmtQty(it.n, it.u);
+  if (it.vago) return "quantità nella ricetta";
+  return it.volte > 1 ? "per " + it.volte + " ricette" : "q.b.";
+}
+
+function renderSpesaDays() {
+  const box = $("spesa-days"), sel = store.get("spesa_days", GIORNI.map((g) => g[0]));
+  box.textContent = "";
+  GIORNI.forEach((g) => {
+    const b = el("button", "", g[1].slice(0, 3));
+    b.type = "button"; b.setAttribute("aria-pressed", String(sel.includes(g[0]))); b.setAttribute("aria-label", g[1]);
+    b.addEventListener("click", () => {
+      const cur = store.get("spesa_days", GIORNI.map((x) => x[0]));
+      const next = cur.includes(g[0]) ? cur.filter((x) => x !== g[0]) : GIORNI.map((x) => x[0]).filter((x) => cur.includes(x) || x === g[0]);
+      store.set("spesa_days", next); renderSpesa();
+    });
+    box.appendChild(b);
+  });
+}
+
+function renderSpesa() {
+  renderSpesaDays();
+  const { items, days, vaghe } = buildSpesa();
+  const checked = store.get("spesa_checked", {});
+  const useCasa = $("in-spesa-casa").checked && state.ingredients.length > 0;
+  $("spesa-casa-label").textContent = state.ingredients.length
+    ? "Metti a parte ciò che ho già in casa (" + state.ingredients.length + " alimenti dall'elenco del frigo)"
+    : "Metti a parte ciò che ho già in casa (fotografa prima il frigo)";
+  const box = $("spesa");
+  box.textContent = "";
+  if (!days.length) { box.appendChild(el("p", "muted", "Scegli almeno un giorno.")); return; }
+  const groups = {}, casa = [], base = [];
+  items.forEach((it) => {
+    if (!it.extra && DISPENSA_BASE.test(it.nome)) base.push(it);
+    else if (useCasa && !it.extra && giaInCasa(it.nome)) casa.push(it);
+    else (groups[it.rep] = groups[it.rep] || []).push(it);
+  });
+  const row = (it) => {
+    const li = el("li"), lab = el("label"), cb = el("input"), txt = el("span");
+    const id = "sp-" + it.nome.replace(/[^a-z0-9]+/gi, "-");
+    cb.type = "checkbox"; cb.id = id; lab.htmlFor = id; cb.checked = !!checked[it.nome];
+    cb.addEventListener("change", () => { const c = store.get("spesa_checked", {}); if (cb.checked) c[it.nome] = 1; else delete c[it.nome]; store.set("spesa_checked", c); });
+    txt.appendChild(document.createTextNode(it.nome.charAt(0).toUpperCase() + it.nome.slice(1)));
+    const q = qtyLabel(it);
+    if (q) txt.appendChild(el("span", "sp-qty", " · " + q));
+    lab.appendChild(cb); lab.appendChild(txt);
+    if (it.extra) {
+      const x = el("button", "sp-del", "×"); x.type = "button"; x.setAttribute("aria-label", "Togli " + it.nome);
+      x.addEventListener("click", (e) => { e.preventDefault(); store.set("spesa_extra", store.get("spesa_extra", []).filter((v) => v !== it.nome)); renderSpesa(); });
+      lab.appendChild(x);
     }
-    const mm = String(Math.floor(left / 60)).padStart(2, "0"), ss = String(left % 60).padStart(2, "0");
-    button.textContent = mm + ":" + ss + " · tocca per fermare";
+    li.appendChild(lab);
+    return li;
   };
-  timer = { id: setInterval(tick, 500), button: button, label: label };
-  button.classList.add("running");
-  tick();
+  const section = (title, list, note) => {
+    if (!list.length) return;
+    list.sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    box.appendChild(el("h4", "sp-rep", title));
+    if (note) box.appendChild(el("p", "muted", note));
+    const ul = el("ul", "checklist"); list.forEach((it) => ul.appendChild(row(it))); box.appendChild(ul);
+  };
+  REPARTI.forEach((rep) => section(rep, groups[rep] || []));
+  section("Già in casa", casa, "Li hai fotografati: controlla solo che la quantità basti.");
+  if (base.length) {
+    const det = el("details", "sp-base");
+    det.appendChild(el("summary", "", "Dispensa di base (" + base.length + "): olio, aceto, spezie"));
+    const ul = el("ul", "checklist"); base.sort((a, b) => a.nome.localeCompare(b.nome, "it")).forEach((it) => ul.appendChild(row(it))); det.appendChild(ul);
+    box.appendChild(det);
+  }
+  const notes = [];
+  if (days.includes("sab")) notes.push("La cena libera del sabato non è inclusa.");
+  if (vaghe) notes.push("Per alcune alternative le dosi compaiono solo dopo averle aperte una volta.");
+  if (notes.length) box.appendChild(el("p", "muted sp-note", notes.join(" ")));
+}
+
+function spesaText() {
+  const { items, days } = buildSpesa();
+  const checked = store.get("spesa_checked", {});
+  const useCasa = $("in-spesa-casa").checked && state.ingredients.length > 0;
+  const lines = ["Spesa · " + days.map((d) => GIORNI.find((g) => g[0] === d)[1].slice(0, 3)).join(", ")];
+  REPARTI.forEach((rep) => {
+    const list = items.filter((it) => it.rep === rep && !checked[it.nome] && !(!it.extra && DISPENSA_BASE.test(it.nome)) && !(useCasa && !it.extra && giaInCasa(it.nome)))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    if (!list.length) return;
+    lines.push("", rep.toUpperCase());
+    list.forEach((it) => { const q = qtyLabel(it); lines.push("- " + it.nome + (q && q !== "q.b." ? " (" + q + ")" : "")); });
+  });
+  return lines.join("\n");
+}
+
+async function shareSpesa() {
+  const text = spesaText();
+  try {
+    if (navigator.share) { await navigator.share({ title: "Lista della spesa", text: text }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  copySpesa();
+}
+async function copySpesa() {
+  try { await navigator.clipboard.writeText(spesaText()); setStatus($("spesa-status"), "Lista copiata: incollala in Note, Promemoria o in un messaggio."); }
+  catch (e) { setStatus($("spesa-status"), "Non riesco a copiare da qui: usa «Condividi la lista».", "error"); }
+  setTimeout(() => setStatus($("spesa-status"), ""), 4000);
+}
+
+/* ---------- Offline ---------- */
+function renderOnline() { $("offline").hidden = navigator.onLine !== false; }
+window.addEventListener("online", renderOnline);
+window.addEventListener("offline", renderOnline);
+if ("serviceWorker" in navigator) {
+  try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) {}
 }
 
 /* ---------- Avvio ---------- */
@@ -1473,6 +1890,7 @@ $("btn-reload-models").addEventListener("click", () => saveSettings(true));
 $("btn-test").addEventListener("click", testConnection);
 $("tab-frigo").addEventListener("click", () => setTab("frigo"));
 $("tab-perme").addEventListener("click", () => setTab("perme"));
+$("tab-spesa").addEventListener("click", () => setTab("spesa"));
 $("in-camera").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
 $("in-library").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
 $("in-camera2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
@@ -1485,7 +1903,7 @@ function clearAll(statusId) {
   if (state.busy) return;
   state.ingredients = []; saveIngredients();
   state.photos = []; state.photosAnalyzed = true;
-  state.recipes = []; state.pmRecipes = [];
+  state.recipes = []; state.pmRecipes = []; saveRecipes();
   ["photo-status", "recipes-status", "pm-status", "clear-status", "clear-status2"].forEach((id) => setStatus($(id), ""));
   renderPhotos(); renderIngredients(); renderRecipes(); renderPm();
   setStatus($(statusId), "Fatto: elenco, foto e ricette proposte sono stati tolti. Puoi fotografare di nuovo.");
@@ -1500,16 +1918,40 @@ $("pm-day").addEventListener("change", renderRule);
 $("pm-meal").addEventListener("change", renderRule);
 $("in-plan").addEventListener("change", (e) => store.set("plan", e.target.checked));
 $("btn-back").addEventListener("click", closeRecipe);
+$("cook-close").addEventListener("click", closeCook);
+$("cook-prev").addEventListener("click", () => cookMove(-1));
+$("cook-next").addEventListener("click", () => { unlockAudio(); cookMove(1); });
+$("cook-voice").addEventListener("click", () => {
+  voiceOn = !voiceOn; store.set("voice", voiceOn);
+  $("cook-voice").setAttribute("aria-pressed", String(voiceOn));
+  $("cook-voice").textContent = voiceOn ? "Voce attiva" : "Leggi ad alta voce";
+  if (voiceOn) renderCook(); else if (window.speechSynthesis) try { speechSynthesis.cancel(); } catch (e) {}
+});
+$("btn-spesa-share").addEventListener("click", shareSpesa);
+$("btn-spesa-copy").addEventListener("click", copySpesa);
+$("in-spesa-casa").addEventListener("change", renderSpesa);
+$("btn-spesa-reset").addEventListener("click", () => { store.set("spesa_checked", {}); renderSpesa(); });
+$("form-spesa").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const v = $("in-spesa").value.trim().toLowerCase().slice(0, 60);
+  if (v) { const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x); }
+  $("in-spesa").value = ""; renderSpesa();
+});
 
 Object.keys(state.alt).forEach((k) => { if (state.alt[k]) delete state.alt[k].loading; });
+state.recipes.forEach((r) => { delete r.loading; });
 GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("pm-day").appendChild(o); });
 $("pm-day").value = OGGI;
 $("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 12 ? "spuntino1" : h < 15 ? "pranzo" : h < 18 ? "spuntino2" : "cena"; })();
 $("in-plan").checked = store.get("plan", true);
+$("cook-voice").setAttribute("aria-pressed", String(voiceOn));
+$("cook-voice").textContent = voiceOn ? "Voce attiva" : "Leggi ad alta voce";
+renderOnline();
 setTab(state.tab);
 renderModels();
 renderKeyWhere();
 renderIngredients();
+renderRecipes();
 renderDays();
 renderWeek();
 renderRule();
