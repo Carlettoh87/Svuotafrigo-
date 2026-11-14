@@ -238,6 +238,7 @@ main[data-tab="frigo"] [data-view="perme"], main[data-tab="perme"] [data-view="f
 .meal-label { font-size: 11.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
 .meal .recipe-card { border-top: 0; padding: 0; }
 .meal .simple { display: flex; flex-direction: column; gap: 6px; }
+.btn-clear { align-self: flex-start; }
 .meal .row { margin-top: 6px; gap: 8px; }
 .meal .row > button.small { flex: 0 1 auto; }
 .meal [role="status"]:empty { display: none; }
@@ -320,6 +321,8 @@ i.mg { background: var(--muted); }
     <h2><span class="step">2</span>Controlla gli ingredienti</h2>
     <p class="muted" id="ing-empty">Qui comparirà l'elenco riconosciuto dalle foto. Puoi anche scriverlo a mano, senza foto.</p>
     <ul class="chips" id="chips"></ul>
+    <button type="button" class="small btn-clear" id="btn-clear" hidden>Svuota l'elenco e ricomincia</button>
+    <div id="clear-status" role="status" aria-live="polite"></div>
     <form class="add" id="form-add">
       <input type="text" id="in-add" placeholder="Aggiungi un ingrediente" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un ingrediente">
       <button type="submit">Aggiungi</button>
@@ -350,7 +353,6 @@ i.mg { background: var(--muted); }
       <input type="text" id="in-notes" placeholder="Es. vegetariano, piatto unico">
     </label>
     <button type="button" class="primary" id="btn-recipes" disabled>Proponi ricette</button>
-    <button type="button" class="small" id="btn-clear" hidden>Svuota l'elenco</button>
   </section>
 
   <section class="card" id="sec-recipes" data-view="frigo">
@@ -385,6 +387,8 @@ i.mg { background: var(--muted); }
     </div>
     <div class="thumbs" id="thumbs2"></div>
     <ul class="chips" id="chips2"></ul>
+    <button type="button" class="small btn-clear" id="btn-clear2" hidden>Svuota l'elenco e ricomincia</button>
+    <div id="clear-status2" role="status" aria-live="polite"></div>
     <form class="add" id="form-add2">
       <input type="text" id="in-add2" placeholder="Aggiungi un alimento a mano" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un alimento a mano">
       <button type="submit">Aggiungi</button>
@@ -849,6 +853,8 @@ function renderPhotos() {
     });
   });
   $("btn-analyze").hidden = state.photos.length === 0;
+  const any = state.photos.length > 0 || state.ingredients.length > 0;
+  $("btn-clear").hidden = !any; $("btn-clear2").hidden = !any;
 }
 
 function promptIngredienti() {
@@ -911,7 +917,8 @@ function renderIngredients() {
   });
   const has = state.ingredients.length > 0;
   $("ing-empty").hidden = has;
-  $("btn-clear").hidden = !has;
+  $("btn-clear").hidden = !has && !state.photos.length;
+  $("btn-clear2").hidden = !has && !state.photos.length;
   $("btn-recipes").disabled = !has || state.busy;
 }
 
@@ -1428,7 +1435,7 @@ function toggleTimer(button, minutes, label) {
 /* ---------- Avvio ---------- */
 function setBusy(b) {
   state.busy = b;
-  ["btn-analyze", "btn-more", "btn-pm", "btn-test"].forEach((id) => { $(id).disabled = b; });
+  ["btn-analyze", "btn-more", "btn-pm", "btn-test", "btn-clear", "btn-clear2"].forEach((id) => { $(id).disabled = b; });
   $("btn-recipes").disabled = b || !state.ingredients.length;
   document.querySelectorAll(".btn-alt").forEach((x) => { x.disabled = b; });
 }
@@ -1451,7 +1458,19 @@ $("in-library2").addEventListener("change", (e) => { addPhotos(e.target.files, $
 $("btn-analyze").addEventListener("click", analyze);
 $("form-add").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add"); });
 $("form-add2").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add2"); });
-$("btn-clear").addEventListener("click", () => { state.ingredients = []; saveIngredients(); renderIngredients(); });
+/* Ricomincia da capo: toglie alimenti, foto e ricette proposte (il menu della settimana resta). */
+function clearAll(statusId) {
+  if (state.busy) return;
+  state.ingredients = []; saveIngredients();
+  state.photos = []; state.photosAnalyzed = true;
+  state.recipes = []; state.pmRecipes = [];
+  ["photo-status", "recipes-status", "pm-status", "clear-status", "clear-status2"].forEach((id) => setStatus($(id), ""));
+  renderPhotos(); renderIngredients(); renderRecipes(); renderPm();
+  setStatus($(statusId), "Fatto: elenco, foto e ricette proposte sono stati tolti. Puoi fotografare di nuovo.");
+  setTimeout(() => setStatus($(statusId), ""), 4000);
+}
+$("btn-clear").addEventListener("click", () => clearAll("clear-status"));
+$("btn-clear2").addEventListener("click", () => clearAll("clear-status2"));
 $("btn-recipes").addEventListener("click", () => makeRecipes(false));
 $("btn-more").addEventListener("click", () => makeRecipes(true));
 $("btn-pm").addEventListener("click", perMeGenerate);
