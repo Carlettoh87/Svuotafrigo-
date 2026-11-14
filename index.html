@@ -526,6 +526,11 @@ if (store.get("v", 1) < 2) {   // versione 2: nuovo modello predefinito
 const $ = (id) => document.getElementById(id);
 const API = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL = "gemini-flash-latest";
+const FALLBACK_MODELS = [
+  { id: "gemini-flash-latest", label: "Gemini Flash (predefinito)" },
+  { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite (più veloce)" }
+];
+const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000 };   // millisecondi di attesa massima
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -555,15 +560,24 @@ function explainError(status, message) {
   return "Errore " + status + ": " + (message || "richiesta non riuscita.");
 }
 
-async function apiFetch(path, options) {
-  let res;
+async function apiFetch(path, options, ms) {
+  let res, timedOut = false;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms || TEMPI.elenco);
   try {
     res = await fetch(API + path, Object.assign({}, options, {
-      headers: Object.assign({ "x-goog-api-key": state.key, "Content-Type": "application/json" }, (options && options.headers) || {})
+      signal: ctrl.signal,
+      headers: Object.assign({ "x-goog-api-key": state.key }, (options && options.headers) || {})
     }));
   } catch (e) {
-    throw new Error("Connessione non riuscita. Controlla la rete e riprova.");
+    clearTimeout(timer);
+    const err = new Error(timedOut
+      ? "Non riesco a raggiungere i server di Google: nessuna risposta in " + Math.round((ms || TEMPI.elenco) / 1000) + " secondi."
+      : "Non riesco a raggiungere i server di Google" + (e && e.message ? " (" + e.message + ")" : "") + ".");
+    err.unreachable = true;
+    throw err;
   }
+  clearTimeout(timer);
   let data = null;
   try { data = await res.json(); } catch (e) {}
   if (!res.ok) throw new Error(explainError(res.status, data && data.error && data.error.message));
@@ -619,13 +633,13 @@ async function readSSE(res, onChunk) {
   return text;
 }
 
-async function generate(model, parts, temperature, think) {
+async function generate(model, parts, temperature, think, ms) {
   const cfg = {};
   if (!/^gemini-([3-9]|\d\d)/.test(model) && !/latest/.test(model)) cfg.temperature = temperature;  // per Gemini 3 Google consiglia la temperatura predefinita
   if (think) cfg.thinkingConfig = think;
   const ctrl = new AbortController();
   let timer = null, timedOut = false;
-  const arm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, 70000); };
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms || TEMPI.risposta); };
   arm();
   let res;
   try {
@@ -653,10 +667,10 @@ async function generate(model, parts, temperature, think) {
 /* Il terzo parametro (kind) serve solo alla versione dimostrativa. */
 async function askModel(parts, temperature, kind) {
   const model = state.model || DEFAULT_MODEL;
-  const think = thinkingFor(model);
-  try { return await generate(model, parts, temperature, think); }
+  const think = thinkingFor(model), ms = kind === "test" ? TEMPI.prova : TEMPI.risposta;
+  try { return await generate(model, parts, temperature, think, ms); }
   catch (e) {
-    if (think && e.status === 400 && !/api.?key/i.test(e.raw || "")) return generate(model, parts, temperature, null);
+    if (think && e.status === 400 && !/api.?key/i.test(e.raw || "")) return generate(model, parts, temperature, null, ms);
     throw e;
   }
 }
@@ -693,7 +707,7 @@ async function loadModels() {
     .sort((a, b) => a.id.localeCompare(b.id));
   state.models = list;
   store.set("models", list);
-  if (!state.model || !list.some((m) => m.id === state.model)) {
+  if (!state.model || (!list.some((m) => m.id === state.model) && !FALLBACK_MODELS.some((m) => m.id === state.model))) {
     state.model = pickDefault(list);
     store.set("model", state.model);
   }
@@ -703,13 +717,15 @@ async function loadModels() {
 function renderModels() {
   const sel = $("in-model");
   sel.textContent = "";
-  const list = state.models.length ? state.models : [{ id: DEFAULT_MODEL, label: "Gemini Flash (predefinito)" }];
+  const list = state.models.length ? state.models.slice() : FALLBACK_MODELS.slice();
+  FALLBACK_MODELS.forEach((f) => { if (!list.some((m) => m.id === f.id)) list.unshift(f); });
+  if (state.model && !list.some((m) => m.id === state.model)) list.unshift({ id: state.model, label: state.model });
   for (const m of list) {
     const o = el("option", "", m.label + " (" + m.id + ")");
     o.value = m.id;
     sel.appendChild(o);
   }
-  sel.value = state.model || list[0].id;
+  sel.value = state.model || DEFAULT_MODEL;
 }
 
 /* ---------- Impostazioni ---------- */
@@ -726,18 +742,17 @@ async function saveSettings(reload) {
   if (!key) { setStatus($("settings-status"), "Incolla prima la chiave API.", "error"); return; }
   const keyChanged = key !== state.key;
   state.key = key; store.set("key", key);
-  if (!keyChanged && !reload) { state.model = $("in-model").value; store.set("model", state.model); }
+  state.model = $("in-model").value || DEFAULT_MODEL; store.set("model", state.model);
+  if (!keyChanged && !reload && state.models.length) {
+    setStatus($("settings-status"), "Salvato. Modello: " + state.model + ".");
+    return;
+  }
+  setStatus($("settings-status"), "Salvato. Scarico l'elenco dei modelli…", "loading");
   try {
-    if (keyChanged || reload || !state.models.length) {
-      setStatus($("settings-status"), "Controllo la chiave e carico i modelli…", "loading");
-      await loadModels();
-      setStatus($("settings-status"), "Chiave valida. Modello scelto: " + state.model + ". Puoi cambiarlo e toccare di nuovo Salva.");
-    } else {
-      setStatus($("settings-status"), "Salvato.");
-      toggleSettings(false);
-    }
+    await loadModels();
+    setStatus($("settings-status"), "Chiave valida. Modello: " + state.model + ". Tocca «Prova la connessione» per verificare.");
   } catch (e) {
-    setStatus($("settings-status"), e.message, "error");
+    setStatus($("settings-status"), "Salvato, ma " + e.message.charAt(0).toLowerCase() + e.message.slice(1), "error");
   }
 }
 
@@ -745,17 +760,31 @@ async function testConnection() {
   const st = $("settings-status");
   const key = $("in-key").value.trim();
   if (!key) { setStatus(st, "Incolla prima la chiave API.", "error"); return; }
-  if (key !== state.key) { state.key = key; store.set("key", key); }
-  state.model = $("in-model").value || state.model; store.set("model", state.model);
+  state.key = key; store.set("key", key);
+  state.model = $("in-model").value || DEFAULT_MODEL; store.set("model", state.model);
   setBusy(true);
-  setStatus(st, "Provo a parlare con Google…", "loading");
-  const t0 = Date.now();
+  // Passo 1: il telefono raggiunge Google e la chiave è accettata? (richiesta minuscola)
+  setStatus(st, "Passo 1 di 2: raggiungo i server di Google…", "loading");
+  let t0 = Date.now();
+  try {
+    await apiFetch("/models?pageSize=1", { method: "GET" }, TEMPI.elenco);
+  } catch (e) {
+    setStatus(st, e.unreachable
+      ? e.message + " Il problema è la rete o un'impostazione del telefono, non l'app: prova a passare dal Wi-Fi alla rete cellulare (o viceversa) e a disattivare VPN, blocchi della pubblicità o filtri dei contenuti."
+      : "Google risponde, ma rifiuta la chiave: " + e.message, "error");
+    setBusy(false);
+    return;
+  }
+  const s1 = ((Date.now() - t0) / 1000).toFixed(1).replace(".", ",");
+  // Passo 2: il modello scelto risponde?
+  setStatus(st, "Passo 2 di 2: Google raggiunto in " + s1 + " s. Chiedo una risposta di prova a " + state.model + "…", "loading");
+  t0 = Date.now();
   try {
     await askModel([{ text: "Rispondi solo con la parola OK." }], 0, "test");
     const s = Math.max(1, Math.round((Date.now() - t0) / 1000));
-    setStatus(st, "Funziona: risposta in " + s + (s === 1 ? " secondo" : " secondi") + " con il modello " + (state.model || DEFAULT_MODEL) + ".");
+    setStatus(st, "Funziona: Google raggiunto in " + s1 + " s, risposta in " + s + (s === 1 ? " secondo" : " secondi") + " con il modello " + state.model + ".");
   } catch (e) {
-    setStatus(st, e.message, "error");
+    setStatus(st, "Google è raggiungibile e la chiave è valida, ma il modello " + state.model + " non risponde: " + e.message, "error");
   }
   setBusy(false);
 }
