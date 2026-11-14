@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<!--
+  Svuotafrigo — fotografa il frigo, ottieni l'elenco degli alimenti e le ricette.
+
+  Licenza MIT
+  Copyright (c) 2026 gli autori di Svuotafrigo
+
+  È concesso gratuitamente a chiunque ottenga una copia di questo software il
+  permesso di usarlo, copiarlo, modificarlo, unirlo, pubblicarlo, distribuirlo,
+  concederlo in sublicenza e/o venderlo, senza restrizioni, a condizione che
+  questo avviso di copyright e di licenza sia incluso in tutte le copie.
+  IL SOFTWARE VIENE FORNITO "COSÌ COM'È", SENZA GARANZIE DI ALCUN TIPO.
+
+  COME È FATTO (per chi vuole modificarlo)
+  - È un unico file: struttura (HTML), aspetto (CSS, nel blocco style) e
+    logica (JavaScript, nel blocco script in fondo).
+  - I colori e i caratteri sono nel blocco :root all'inizio dello style.
+  - Scheda «Per me»: le ricette fisse della settimana sono in SETTIMANA; le
+    quantità previste per ogni pasto, giorno per giorno, sono in REGOLE.
+  - Il file contiene solo alimenti, quantità e ricette: nessun dato personale.
+  - I testi inviati al modello sono nelle funzioni promptIngredienti(),
+    promptRicette(), promptPerMe() e promptDettaglio().
+  - Nessun server: la pagina parla direttamente con la API di Google usando la
+    chiave salvata solo sul tuo telefono.
+-->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Svuotafrigo</title>
+<meta name="description" content="Fotografa il frigo e ricevi ricette con quello che hai in casa.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Svuotafrigo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F6F4F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151114" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..700&family=Jost:wght@300..600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: una colonna, come la carta di un ristorante. Linee sottili al posto dei riquadri,
+     titoli in Bodoni, etichette in maiuscoletto spaziato, un solo colore d'accento. */
+  --bg: #F6F4F1;        /* porcellana */
+  --surface: #FFFFFF;
+  --ink: #1F1A1C;
+  --muted: #6F666A;
+  --line: #E2DCD6;
+  --accent: #6B2737;    /* bordeaux */
+  --accent-ink: #FFFFFF;
+  --chip: #F1E9E6;
+  --gold: #A8875A;      /* filetti e numeri */
+  --warn: #9A4A1C;      /* solo per errori e cose da comprare */
+  --warn-bg: #F6E8DE;
+  --font-display: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
+  --font-body: "Jost", "Avenir Next", Avenir, system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151114;
+    --surface: #1E181C;
+    --ink: #F1EAE6;
+    --muted: #A89DA2;
+    --line: #342B30;
+    --accent: #D9B98A;
+    --accent-ink: #1B1416;
+    --chip: #2A2126;
+    --gold: #B8996A;
+    --warn: #F0A27E;
+    --warn-bg: #3A241C;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 17px/1.55 var(--font-body);
+  padding: calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 18px)
+           calc(env(safe-area-inset-bottom) + 48px) calc(env(safe-area-inset-left) + 18px);
+}
+main { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+[hidden] { display: none !important; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+.muted { color: var(--muted); font-size: 15.5px; }
+
+/* Testata */
+header { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 0 6px; text-align: center; }
+h1 { font: italic 500 40px/1 var(--font-display); letter-spacing: -0.01em; margin: 0; }
+.tagline { font-size: 11.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); }
+header::after { content: ""; order: 1; width: 56px; height: 1px; background: var(--gold); margin: 10px 0 2px; }
+#btn-settings { order: 2; border: 0; background: transparent; color: var(--muted); min-height: 36px; padding: 6px 10px; }
+
+/* Sezioni */
+section.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+  padding: 24px 20px; display: flex; flex-direction: column; gap: 16px;
+}
+h2 { font: 500 25px/1.15 var(--font-display); margin: 0; text-wrap: balance; display: flex; align-items: baseline; gap: 12px; }
+h3 { font: 500 22px/1.2 var(--font-display); margin: 0; text-wrap: balance; }
+.step { font: italic 400 25px/1 var(--font-display); color: var(--gold); flex: none; }
+.step::after { content: "."; }
+
+/* Pulsanti */
+button, .btn {
+  font: 500 13px/1.2 var(--font-body); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink); background: transparent; border: 1px solid var(--ink); border-radius: 2px;
+  padding: 14px 16px; min-height: 50px; cursor: pointer; text-align: center; position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  -webkit-tap-highlight-color: transparent; transition: background-color .15s, color .15s;
+}
+button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.small { font-size: 12px; padding: 9px 12px; min-height: 40px; border-color: var(--line); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, .btn:focus-within, input:focus-visible, select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row > * { flex: 1 1 140px; }
+.btn input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+/* Campi */
+label { font-size: 11.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+input[type=text], input[type=password], input[type=number], select {
+  font: 400 17px/1.3 var(--font-body); letter-spacing: 0; text-transform: none; color: var(--ink);
+  background: transparent; border: 0; border-bottom: 1px solid var(--ink); border-radius: 0;
+  padding: 9px 2px; width: 100%; min-height: 44px; -webkit-appearance: none; appearance: none;
+}
+select { background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 11px) 55%, calc(100% - 6px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 24px; }
+input::placeholder { color: var(--muted); opacity: .8; }
+label.check { flex-direction: row; align-items: center; gap: 12px; font-size: 16px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink); }
+label.check input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+
+/* Foto */
+.thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.thumb { position: relative; width: 88px; height: 110px; border-radius: 2px; overflow: hidden; border: 1px solid var(--line); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb button {
+  position: absolute; top: 4px; right: 4px; min-height: 0; width: 26px; height: 26px; padding: 0;
+  border-radius: 50%; border: 0; background: rgba(20,14,16,.7); color: #fff; font-size: 16px; line-height: 1; letter-spacing: 0;
+}
+
+/* Ingredienti */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.chips li {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 5px 5px 15px;
+  display: inline-flex; align-items: center; gap: 4px; font-size: 16px;
+}
+.chips li button {
+  min-height: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 18px; line-height: 1; letter-spacing: 0;
+}
+.add { display: flex; gap: 12px; align-items: flex-end; }
+.add input { flex: 1; }
+.add button { flex: none; min-height: 44px; padding: 10px 14px; }
+
+/* Messaggi */
+.status { border-left: 2px solid var(--gold); padding: 10px 14px; font-size: 16px; background: var(--chip); display: flex; gap: 12px; align-items: center; }
+.status.error { background: var(--warn-bg); color: var(--warn); border-left-color: var(--warn); }
+.spinner {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--line); border-top-color: var(--accent); animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } * { transition: none !important; } }
+
+/* Elenco delle ricette: righe da menu, separate da un filetto */
+.recipes { display: flex; flex-direction: column; }
+.recipe-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: left;
+  background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0;
+  padding: 20px 0; min-height: 0; width: 100%;
+  font: 400 17px/1.5 var(--font-body); letter-spacing: 0; text-transform: none; color: var(--ink);
+}
+.recipe-card:first-child { border-top: 0; padding-top: 4px; }
+.recipe-card h3 + .muted { font: italic 400 17px/1.4 var(--font-display); }
+.recipe-card .open { color: var(--accent); font-size: 12px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.pill { font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pill.ok { color: var(--gold); }
+.pill.buy { color: var(--warn); }
+
+/* Pagina della ricetta */
+main.in-detail > *:not(#detail) { display: none; }
+#detail { animation: appear .35s ease-out; }
+@keyframes appear { from { opacity: .4; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#detail h2 { font-size: 31px; font-style: italic; }
+#detail h2 + .muted { font: italic 400 18px/1.4 var(--font-display); }
+#detail h4 {
+  margin: 14px 0 0; font-size: 11.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: center; gap: 12px;
+}
+#detail h4::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+#detail .buy-line { color: var(--warn); font-size: 15.5px; }
+#detail ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.checklist label { flex-direction: row; align-items: flex-start; gap: 14px; font-size: 17px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 11px 0; border-bottom: 1px solid var(--line); }
+.checklist li:last-child label { border-bottom: 0; }
+.checklist input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin: 2px 0 0; }
+.checklist .qty { font-weight: 600; font-variant-numeric: tabular-nums; }
+.checklist input:checked + span { color: var(--muted); text-decoration: line-through; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; counter-reset: passo; }
+.steps li {
+  counter-increment: passo; position: relative; padding: 18px 0 18px 52px; border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 6px; font-size: 18px; line-height: 1.55;
+}
+.steps li:last-child { border-bottom: 0; }
+.steps li::before { content: counter(passo); position: absolute; left: 0; top: 12px; width: 40px; font: italic 400 38px/1 var(--font-display); color: var(--gold); }
+.steps .step-title { font: 500 21px/1.25 var(--font-display); }
+.steps button.timer { align-self: flex-start; margin-top: 6px; font-variant-numeric: tabular-nums; border-color: var(--ink); }
+.steps button.timer.running { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.steps button.timer.done { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
+
+/* Schede in alto: Dal frigo / Per me */
+.tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tabs button {
+  flex: 1; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted);
+  min-height: 48px; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+main[data-tab="frigo"] [data-view="perme"], main[data-tab="perme"] [data-view="frigo"] { display: none; }
+
+/* Giorni della settimana */
+.days { display: flex; gap: 6px; }
+.days button { flex: 1 1 0; min-width: 0; padding: 8px 0; min-height: 44px; font-size: 11.5px; letter-spacing: .08em; border-color: var(--line); }
+.days button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.meal { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; border-top: 1px solid var(--line); }
+.meal:first-child { border-top: 0; padding-top: 0; }
+.meal-label { font-size: 11.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
+.meal .recipe-card { border-top: 0; padding: 0; }
+.meal .simple { display: flex; flex-direction: column; gap: 6px; }
+.meal button.small { align-self: flex-start; margin-top: 6px; }
+.day-total { border-left: 2px solid var(--gold); padding: 8px 14px; background: var(--chip); font-size: 15.5px; }
+
+/* Calorie e nutrienti */
+.nutri-line { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nutri-line strong { color: var(--ink); font-weight: 600; }
+.nutri { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 0; display: flex; flex-direction: column; gap: 14px; }
+.nutri .kcal { font: 500 34px/1 var(--font-display); font-variant-numeric: lining-nums; }
+.nutri .kcal small { font: 500 11.5px/1 var(--font-body); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-left: 8px; }
+.nutri .macros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.nutri .macros div { display: flex; flex-direction: column; gap: 3px; }
+.nutri .macros b { font: 500 21px/1.1 var(--font-display); font-variant-numeric: lining-nums tabular-nums; }
+.nutri .macros span { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.macro-bar { display: flex; height: 5px; gap: 2px; }
+.macro-bar i { display: block; height: 100%; }
+i.mp { background: var(--accent); }
+i.mc { background: var(--gold); }
+i.mg { background: var(--muted); }
+.nutri .legend { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.nutri .legend i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<main id="app" data-tab="frigo">
+  <header>
+    <h1>Svuotafrigo</h1>
+    <p class="tagline">Dal frigo alla tavola</p>
+    <button type="button" class="small" id="btn-settings" aria-expanded="false" aria-controls="settings">Impostazioni</button>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Sezioni">
+    <button type="button" role="tab" id="tab-frigo" aria-selected="true">Dal frigo</button>
+    <button type="button" role="tab" id="tab-perme" aria-selected="false">Per me</button>
+  </div>
+
+  <!-- IMPOSTAZIONI -->
+  <section class="card" id="settings" hidden>
+    <h2>Impostazioni</h2>
+    <p class="muted" id="key-help">
+      Serve una chiave gratuita di Google. Apri
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>,
+      accedi con il tuo account Google, tocca «Crea chiave API», copiala e incollala qui sotto.
+      La chiave resta salvata solo su questo telefono.
+    </p>
+    <label for="in-key">Chiave API di Google
+      <input type="password" id="in-key" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Incolla qui la chiave">
+    </label>
+    <label for="in-model">Modello
+      <select id="in-model"></select>
+    </label>
+    <p class="muted">I modelli «gemma» sono a pesi aperti (open). I «gemini flash» di solito riconoscono meglio le foto. Se un modello dà errore di limite, provane un altro.</p>
+    <div class="row">
+      <button type="button" class="primary" id="btn-save">Salva</button>
+      <button type="button" id="btn-reload-models">Aggiorna elenco modelli</button>
+    </div>
+    <div id="settings-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <!-- ===== SCHEDA «DAL FRIGO» ===== -->
+  <section class="card" id="sec-photo" data-view="frigo">
+    <h2><span class="step">1</span>Fotografa il frigo</h2>
+    <p class="muted">Una o più foto: ripiani, cassetto delle verdure, sportello. Più luce c'è, meglio riconosce.</p>
+    <div class="row">
+      <label class="btn primary" for="in-camera">Scatta una foto
+        <input type="file" id="in-camera" accept="image/*" capture="environment">
+      </label>
+      <label class="btn" for="in-library">Scegli dalla libreria
+        <input type="file" id="in-library" accept="image/*" multiple>
+      </label>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <button type="button" class="primary" id="btn-analyze" hidden>Riconosci gli alimenti</button>
+    <div id="photo-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" id="sec-ingredients" data-view="frigo">
+    <h2><span class="step">2</span>Controlla gli ingredienti</h2>
+    <p class="muted" id="ing-empty">Qui comparirà l'elenco riconosciuto dalle foto. Puoi anche scriverlo a mano, senza foto.</p>
+    <ul class="chips" id="chips"></ul>
+    <form class="add" id="form-add">
+      <input type="text" id="in-add" placeholder="Aggiungi un ingrediente" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un ingrediente">
+      <button type="submit">Aggiungi</button>
+    </form>
+    <label class="check" for="in-pantry">
+      <input type="checkbox" id="in-pantry" checked>
+      Ho anche la dispensa di base (olio, sale, erbe, pasta, riso, farina)
+    </label>
+    <label class="check" for="in-plan">
+      <input type="checkbox" id="in-plan" checked>
+      Escludi aglio, cipolla, pepe, peperoncino e fritti
+    </label>
+    <div class="row">
+      <label for="in-people">Persone
+        <input type="number" id="in-people" min="1" max="12" value="2" inputmode="numeric">
+      </label>
+      <label for="in-time">Tempo massimo
+        <select id="in-time">
+          <option value="15">15 minuti</option>
+          <option value="30" selected>30 minuti</option>
+          <option value="45">45 minuti</option>
+          <option value="60">1 ora</option>
+          <option value="0">Non importa</option>
+        </select>
+      </label>
+    </div>
+    <label for="in-notes">Preferenze (facoltativo)
+      <input type="text" id="in-notes" placeholder="Es. vegetariano, piatto unico">
+    </label>
+    <button type="button" class="primary" id="btn-recipes" disabled>Proponi ricette</button>
+    <button type="button" class="small" id="btn-clear" hidden>Svuota l'elenco</button>
+  </section>
+
+  <section class="card" id="sec-recipes" data-view="frigo">
+    <h2><span class="step">3</span>Ricette</h2>
+    <div id="recipes-status" role="status" aria-live="polite"></div>
+    <p class="muted" id="rec-empty">Le ricette compariranno qui, a partire da quelle che non richiedono di fare la spesa.</p>
+    <p class="muted" id="rec-hint" hidden>Tocca una ricetta per aprire dosi esatte, calorie e istruzioni passo passo.</p>
+    <div class="recipes" id="recipes"></div>
+    <button type="button" id="btn-more" hidden>Proponi altre ricette</button>
+  </section>
+
+  <!-- ===== SCHEDA «PER ME» ===== -->
+  <section class="card" id="sec-week" data-view="perme">
+    <h2>La mia settimana</h2>
+    <p class="muted">Un menu completo, con quantità già calcolate per una persona. Tocca un piatto per la ricetta.</p>
+    <div class="days" id="days" role="group" aria-label="Giorno della settimana"></div>
+    <div class="day-total" id="day-total"></div>
+    <div id="week-status" role="status" aria-live="polite"></div>
+    <div id="week"></div>
+  </section>
+
+  <section class="card" id="sec-pm" data-view="perme">
+    <h2>Con quello che ho in casa</h2>
+    <p class="muted">Fotografa il frigo o la spesa: la ricetta unisce quello che vede con le quantità previste dal menu per il pasto che scegli.</p>
+    <div class="row">
+      <label class="btn primary" for="in-camera2">Scatta una foto
+        <input type="file" id="in-camera2" accept="image/*" capture="environment">
+      </label>
+      <label class="btn" for="in-library2">Scegli dalla libreria
+        <input type="file" id="in-library2" accept="image/*" multiple>
+      </label>
+    </div>
+    <div class="thumbs" id="thumbs2"></div>
+    <ul class="chips" id="chips2"></ul>
+    <form class="add" id="form-add2">
+      <input type="text" id="in-add2" placeholder="Aggiungi un alimento a mano" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un alimento a mano">
+      <button type="submit">Aggiungi</button>
+    </form>
+    <div class="row">
+      <label for="pm-day">Giorno
+        <select id="pm-day"></select>
+      </label>
+      <label for="pm-meal">Pasto
+        <select id="pm-meal">
+          <option value="colazione">Colazione</option>
+          <option value="pranzo">Pranzo</option>
+          <option value="cena">Cena</option>
+        </select>
+      </label>
+    </div>
+    <p class="muted" id="pm-rule"></p>
+    <button type="button" class="primary" id="btn-pm">Crea la ricetta</button>
+    <div id="pm-status" role="status" aria-live="polite"></div>
+    <div class="recipes" id="pm-recipes"></div>
+  </section>
+
+  <!-- PAGINA DELLA RICETTA (si apre toccando una ricetta) -->
+  <section class="card" id="detail" hidden>
+    <button type="button" class="small" id="btn-back" style="align-self:flex-start">← Indietro</button>
+    <div id="detail-status" role="status" aria-live="polite"></div>
+    <div id="detail-body" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <footer class="muted">Software libero, licenza MIT. Calorie e nutrienti sono stime indicative. Le ricette create al momento sono generate da un modello di IA: controlla sempre scadenze e cotture.</footer>
+</main>
+
+<script>
+"use strict";
+
+/* ---------- Memoria locale (solo su questo telefono) ---------- */
+const store = {
+  get(k, fallback) { try { const v = localStorage.getItem("sf_" + k); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } },
+  set(k, v) { try { localStorage.setItem("sf_" + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* ---------- Menu settimanale (scheda «Per me»): quantità previste per ogni pasto ---------- */
+const GIORNI = [["lun", "Lunedì"], ["mar", "Martedì"], ["mer", "Mercoledì"], ["gio", "Giovedì"], ["ven", "Venerdì"], ["sab", "Sabato"], ["dom", "Domenica"]];
+const PASTI = [["colazione", "Colazione"], ["spuntino1", "Spuntino del mattino"], ["pranzo", "Pranzo"], ["spuntino2", "Spuntino del pomeriggio"], ["cena", "Cena"]];
+const SENZA_GLUTINE = ["lun", "mar", "mer", "dom"];   // giorni con menu senza glutine
+const CEREALE_SG = "70 g di riso basmati, pasta di grano saraceno, grano saraceno, quinoa, miglio o pasta di mais";
+const LEGUMI = "150 g di legumi in scatola o in vetro (oppure 50 g di legumi secchi: ceci, piselli, fagioli o lenticchie); in alternativa a cereale e legumi insieme, 90 g di pasta di farina di legumi 100%";
+const CARNE = "200 g di petto di pollo senza pelle, petto di tacchino, arista, vitella o sovracoscio, oppure 150 g di carne rossa";
+const CONTORNO = "verdura a volontà; 10 ml di olio extravergine d'oliva (1 cucchiaio)";
+const REGOLE = {
+  colazione_sg: "150 ml di latte vaccino parzialmente scremato, più una sola di queste opzioni: 4 gallette di mais o di riso con una spalmata di marmellata (a piacere un velo di burro di arachidi 100%); 40 g di cornflakes; 40 g di biscotti secchi senza glutine e senza zuccheri aggiunti; 40 g di fiocchi di avena; pancake con 45 g di farina di avena, 30 ml di latte e 1 albume, con una spalmata di marmellata; 4 gallette con marmellata e una spalmata di ricotta vaccina light",
+  colazione: "150 ml di latte vaccino parzialmente scremato, più una sola di queste opzioni: 50 g di pane integrale con una spalmata di marmellata (a piacere un velo di burro di arachidi 100%); 40 g di cereali integrali; 40 g di fette biscottate integrali con marmellata; 40 g di biscotti secchi; 40 g di fiocchi di avena; pancake con 45 g di farina 00, 30 ml di latte e 1 albume, con marmellata; 50 g di pane integrale con marmellata e una spalmata di ricotta vaccina light",
+  pranzo: {
+    lun: CEREALE_SG + "; 100 g di stracchino light (oppure 100 g di feta, oppure 50 g di salmone affumicato); " + CONTORNO,
+    mar: CEREALE_SG + "; 200 g di gamberetti; " + CONTORNO,
+    mer: CEREALE_SG + "; " + LEGUMI + "; " + CONTORNO,
+    gio: "90 g di pane integrale; 100 g di ricotta vaccina light (oppure 50 g di feta); " + CONTORNO,
+    ven: "80 g di pane integrale; 1 scatoletta piccola di tonno all'olio di oliva ben sgocciolato (circa 52 g); " + CONTORNO,
+    sab: "un secondo a scelta tra 200 g di carne magra, 200 g di pesce magro, 2 uova o 150 g di legumi; 50 g di pane integrale; " + CONTORNO,
+    dom: CEREALE_SG + "; " + LEGUMI + "; " + CONTORNO
+  },
+  cena: {
+    lun: "4 gallette di mais o di riso; 2 uova; " + CONTORNO,
+    mar: "4 gallette di mais o di riso; 150 g di pesce grasso (salmone, tonno, pesce spada, orata, sgombro, trota, dentice o alici fresche); " + CONTORNO,
+    mer: "4 gallette di mais o di riso; " + CARNE + "; " + CONTORNO,
+    gio: "50 g di pane integrale; 200 g di pesce magro (merluzzo, sogliola, platessa, nasello, branzino, polpo, calamari, seppie, baccalà, spigola o simili); " + CONTORNO,
+    ven: "50 g di pane integrale; 2 uova; " + CONTORNO,
+    sab: null,   // cena libera
+    dom: "4 gallette di mais o di riso; " + CARNE + "; " + CONTORNO
+  }
+};
+const STAGIONE = [
+  "bietole, carciofi, carote, broccoli, cavolfiori, cavoli, cicoria, finocchi, funghi, radicchio, rape, spinaci, zucca",
+  "bietole, carciofi, carote, broccoli, cavolfiori, cavoli, cicoria, finocchi, funghi, radicchio, rape, spinaci, zucca",
+  "asparagi, bietole, carciofi, carote, broccoli, cavoli, cicoria, finocchi, funghi, insalata, radicchio, rape, sedano, spinaci",
+  "asparagi, bietole, carciofi, carote, cavolfiori, cavoli, finocchi, funghi, insalata, radicchio, ravanelli, sedano, spinaci",
+  "asparagi, bietole, carote, cavolfiori, cavoli, cicoria, fagiolini, finocchi, insalata, piselli, radicchio, ravanelli, sedano, spinaci",
+  "asparagi, bietole, carciofi, carote, cavoli, cetrioli, cicoria, fagiolini, fave, insalata, melanzane, peperoni, piselli, pomodori, radicchio, ravanelli, sedano, zucchine",
+  "bietole, carote, cavoli, cetrioli, cicoria, fagiolini, fave, insalata, melanzane, peperoni, pomodori, radicchio, ravanelli, sedano, zucchine",
+  "carote, cavoli, cetrioli, cicoria, fagiolini, insalata, melanzane, peperoni, pomodori, radicchio, ravanelli, sedano, zucca, zucchine",
+  "bietole, carote, broccoli, cavoli, cetrioli, cicoria, fagiolini, insalata, melanzane, peperoni, pomodori, radicchio, ravanelli, sedano, spinaci, zucca, zucchine",
+  "bietole, carote, broccoli, cavolfiori, cavoli, cicoria, fagiolini, finocchi, funghi, insalata, melanzane, peperoni, radicchio, rape, ravanelli, sedano, spinaci, zucca",
+  "carote, broccoli, cavolfiori, cavoli, cicoria, fagiolini, finocchi, funghi, insalata, radicchio, rape, sedano, spinaci, zucca",
+  "bietole, carote, broccoli, cavolfiori, cavoli, cicoria, finocchi, funghi, insalata, radicchio, rape, spinaci, zucca"
+];
+const EVITA = "Ingredienti da non usare: aglio, cipolla, peperoncino, pepe, menta, cioccolato, caffè, alcolici, burro, panna. Niente fritture. ";
+const NUTR_FMT = '"nutrizione":{"kcal":450,"proteine_g":30,"carboidrati_g":40,"grassi_g":15,"fibre_g":6}';
+const NUTR_NOTA = ' "nutrizione" è la stima per UNA porzione, calcolata dagli ingredienti e dalle loro quantità a crudo.';
+
+/* Ricette fisse della settimana: quantità per una persona, valori nutrizionali calcolati dalle tabelle di composizione. */
+const SETTIMANA = {"lun": {"colazione": {"titolo": "Gallette con marmellata e burro di arachidi", "descrizione": "Con una tazza di latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 260, "p": 9, "c": 42, "g": 6, "f": 2}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma su ogni galletta un velo sottile di burro di arachidi e sopra la marmellata, dividendola in parti uguali.", "minuti": 0}], "consigli": ["Se le gallette sono poco croccanti, passale 1 minuto in padella asciutta a fuoco basso."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Mela e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 4, "c": 21, "g": 9, "f": 5}, "voci": "150 g di mela, 15 g di mandorle"}, "pranzo": {"titolo": "Riso basmati con zucca arrosto, salvia e feta", "descrizione": "Dolce e sapido insieme.", "tempo_minuti": 35, "difficolta": "facile", "piano": true, "nutr": {"kcal": 640, "p": 23, "c": 67, "g": 31, "f": 4}, "ingredienti_principali": ["riso basmati", "feta", "zucca"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 25, "ingredienti": [{"nome": "riso basmati", "quantita": "70 g"}, {"nome": "feta", "quantita": "100 g"}, {"nome": "zucca", "quantita": "250 g", "note": "già pulita"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "colino"], "passaggi": [{"titolo": "Prepara la zucca", "istruzioni": "Accendi il forno a 200 °C (statico). Taglia la zucca a cubetti di circa 2 cm.", "minuti": 0}, {"titolo": "Arrostisci la zucca", "istruzioni": "Distribuisci i cubetti sulla teglia con metà dell'olio (1 cucchiaino abbondante), la salvia spezzettata e il sale. Inforna nel ripiano centrale: è pronta quando è morbida alla forchetta e dorata sui bordi.", "minuti": 25}, {"titolo": "Cuoci il riso", "istruzioni": "Mentre la zucca cuoce, sciacqua il riso nel colino. Lessalo in acqua bollente poco salata per il tempo indicato sulla confezione, poi scolalo.", "minuti": 11}, {"titolo": "Componi il piatto", "istruzioni": "Unisci riso e zucca, sbriciola sopra la feta con le mani e completa con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["La feta è già salata: non aggiungere altro sale al piatto finito."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Pera e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 170, "p": 16, "c": 28, "g": 0, "f": 5}, "voci": "150 g di pera, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Uova strapazzate cremose con cavolfiore arrosto alla curcuma", "descrizione": "Morbide le uova, croccante il cavolfiore.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 420, "p": 26, "c": 34, "g": 20, "f": 8}, "ingredienti_principali": ["uova", "gallette di mais o di riso", "cavolfiore"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 22, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolfiore", "quantita": "300 g", "note": "solo le cimette"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "ciotola", "padella antiaderente", "spatola"], "passaggi": [{"titolo": "Prepara il cavolfiore", "istruzioni": "Accendi il forno a 200 °C (statico). Dividi il cavolfiore in cimette piccole, di circa 3 cm.", "minuti": 0}, {"titolo": "Arrostisci", "istruzioni": "Condisci le cimette sulla teglia con metà dell'olio, la curcuma e il sale. Inforna: sono pronte quando sono dorate e tenere alla forchetta.", "minuti": 20}, {"titolo": "Sbatti le uova", "istruzioni": "Rompi le uova nella ciotola e sbattile con una forchetta per 20 secondi.", "minuti": 0}, {"titolo": "Cuoci le uova", "istruzioni": "Scalda l'olio rimasto nella padella a fuoco basso. Versa le uova e mescola lentamente con la spatola. Toglile dal fuoco quando sono rapprese ma ancora morbide e lucide: finiscono di cuocere nel piatto.", "minuti": 3}, {"titolo": "Servi", "istruzioni": "Completa le uova con il prezzemolo e accompagna con il cavolfiore e le gallette.", "minuti": 0}], "consigli": ["Il fuoco basso è il segreto: a fuoco alto le uova diventano asciutte e gommose."], "conservazione": "Il cavolfiore si conserva 2 giorni in frigorifero; le uova vanno fatte al momento."}}}, "mar": {"colazione": {"titolo": "Porridge di avena alla cannella", "descrizione": "Cremoso, cotto direttamente nel latte.", "tempo_minuti": 7, "difficolta": "facile", "piano": true, "nutr": {"kcal": 220, "p": 11, "c": 31, "g": 5, "f": 4}, "ingredienti_principali": ["fiocchi di avena", "latte vaccino parzialmente scremato"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 1, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "fiocchi di avena", "quantita": "40 g", "note": "scegli quelli certificati senza glutine"}, {"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cannella in polvere", "quantita": "1 pizzico"}], "attrezzatura": ["pentolino", "cucchiaio di legno"], "passaggi": [{"titolo": "Cuoci l'avena", "istruzioni": "Metti i fiocchi e il latte nel pentolino. Cuoci a fuoco basso mescolando spesso, finché il composto è cremoso e i fiocchi sono morbidi.", "minuti": 5}, {"titolo": "Lascia riposare", "istruzioni": "Versa in una ciotola, spolvera con la cannella e lascia riposare un paio di minuti: si addensa ancora.", "minuti": 2}], "consigli": ["Se diventa troppo denso, aggiungi 1 o 2 cucchiai d'acqua, non altro latte."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Pera e noci", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 3, "c": 23, "g": 10, "f": 6}, "voci": "150 g di pera, 15 g di noci"}, "pranzo": {"titolo": "Pasta di mais con gamberetti e broccoli", "descrizione": "Un primo completo, profumato di limone.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 550, "p": 45, "c": 63, "g": 13, "f": 8}, "ingredienti_principali": ["pasta di mais", "gamberetti sgusciati", "broccoli"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 17, "ingredienti": [{"nome": "pasta di mais", "quantita": "70 g"}, {"nome": "gamberetti sgusciati", "quantita": "200 g"}, {"nome": "broccoli", "quantita": "200 g", "note": "solo le cimette"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "scorza di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola da 3 litri", "padella larga", "scolapasta"], "passaggi": [{"titolo": "Porta l'acqua a bollore", "istruzioni": "Riempi la pentola con 2 litri d'acqua, copri e metti a fuoco alto. Quando bolle aggiungi 1 cucchiaino di sale grosso. Intanto dividi i broccoli in cimette di 2-3 cm.", "minuti": 8}, {"titolo": "Cuoci pasta e broccoli", "istruzioni": "Versa la pasta e mescola. Dopo 3 minuti aggiungi le cimette nella stessa pentola e prosegui fino al tempo indicato sulla confezione: la pasta deve restare soda, i broccoli verde vivo.", "minuti": 9}, {"titolo": "Salta i gamberetti", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio per 1 minuto. Aggiungi i gamberetti e cuoci mescolando finché sono rosa e opachi: non di più, o diventano gommosi.", "minuti": 3}, {"titolo": "Unisci", "istruzioni": "Scola pasta e broccoli tenendo 2 cucchiai di acqua di cottura. Versa tutto nella padella, mescola 1 minuto a fuoco basso, spegni e completa con l'olio rimasto, il prezzemolo e la scorza di limone.", "minuti": 1}], "consigli": ["La pasta di mais scuoce in fretta: assaggiala 1 minuto prima del tempo indicato."], "conservazione": "Meglio appena fatta."}}, "spuntino2": {"titolo": "Clementine e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 155, "p": 16, "c": 24, "g": 0, "f": 3}, "voci": "150 g di clementine, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Salmone al forno con fagiolini al limone", "descrizione": "Il pesce grasso della settimana, cotto senza aggiungere grassi.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 545, "p": 35, "c": 35, "g": 28, "f": 8}, "ingredienti_principali": ["filetto di salmone", "gallette di mais o di riso", "fagiolini"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "filetto di salmone", "quantita": "150 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "fagiolini", "quantita": "250 g"}, {"nome": "limone", "quantita": "mezzo (2 fette e la scorza)"}, {"nome": "aneto o prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "pentola media", "scolapasta"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 180 °C (statico) e metti sul fuoco una pentola d'acqua. Elimina le due punte dei fagiolini.", "minuti": 0}, {"titolo": "Cuoci il salmone", "istruzioni": "Appoggia il filetto sulla teglia con la pelle verso il basso, sala appena e copri con le fette di limone. Inforna: è pronto quando la polpa è rosa opaco e si sfalda toccandola con la forchetta.", "minuti": 14}, {"titolo": "Lessa i fagiolini", "istruzioni": "Quando l'acqua bolle salala poco e cuoci i fagiolini: devono essere teneri ma ancora di un verde vivo. Scolali.", "minuti": 8}, {"titolo": "Condisci e servi", "istruzioni": "Condisci i fagiolini con l'olio, la scorza di limone e le erbe. Servi con il salmone e le gallette.", "minuti": 0}], "consigli": ["Fuori stagione vanno benissimo i fagiolini surgelati: stessa cottura, 2 minuti in più."], "conservazione": "Il salmone cotto si conserva 1 giorno in frigorifero."}}}, "mer": {"colazione": {"titolo": "Pancake di avena con marmellata", "descrizione": "Tre pancake soffici, senza grassi in cottura.", "tempo_minuti": 11, "difficolta": "facile", "piano": true, "nutr": {"kcal": 300, "p": 16, "c": 44, "g": 6, "f": 5}, "ingredienti_principali": ["farina di avena", "latte (per l'impasto)", "albume", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 6, "ingredienti": [{"nome": "farina di avena", "quantita": "45 g", "note": "certificata senza glutine"}, {"nome": "latte (per l'impasto)", "quantita": "30 ml"}, {"nome": "albume", "quantita": "1"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "latte vaccino parzialmente scremato (da bere)", "quantita": "150 ml"}], "attrezzatura": ["ciotola", "frusta o forchetta", "padella antiaderente piccola", "spatola"], "passaggi": [{"titolo": "Prepara la pastella", "istruzioni": "Nella ciotola mescola la farina di avena, i 30 ml di latte e l'albume finché la pastella è liscia e senza grumi. Lasciala riposare.", "minuti": 2}, {"titolo": "Cuoci i pancake", "istruzioni": "Scalda la padella antiaderente a fuoco medio-basso, senza olio. Versa la pastella in 3 dischi. Girali quando in superficie compaiono le bollicine e sotto sono dorati, poi cuoci l'altro lato per lo stesso tempo.", "minuti": 4}, {"titolo": "Servi", "istruzioni": "Spalma la marmellata sui pancake e accompagna con il latte tiepido.", "minuti": 0}], "consigli": ["Se la pastella è troppo densa per essere versata, aggiungi 1 cucchiaio d'acqua."], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kiwi e nocciole", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 4, "c": 23, "g": 10, "f": 6}, "voci": "150 g di kiwi, 15 g di nocciole"}, "pranzo": {"titolo": "Grano saraceno con lenticchie, carote e sedano", "descrizione": "Un piatto unico rustico, senza soffritto.", "tempo_minuti": 38, "difficolta": "facile", "piano": true, "nutr": {"kcal": 520, "p": 22, "c": 73, "g": 13, "f": 19}, "ingredienti_principali": ["grano saraceno in chicchi", "lenticchie in scatola o in vetro", "carote", "sedano"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 30, "ingredienti": [{"nome": "grano saraceno in chicchi", "quantita": "70 g"}, {"nome": "lenticchie in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "sedano", "quantita": "50 g (1 costa)"}, {"nome": "passata di pomodoro", "quantita": "50 g (3 cucchiai)"}, {"nome": "alloro", "quantita": "1 foglia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}], "attrezzatura": ["pentola media", "casseruola con coperchio", "colino"], "passaggi": [{"titolo": "Lessa il grano saraceno", "istruzioni": "Sciacqua i chicchi nel colino. Lessali in acqua bollente poco salata finché sono teneri ma ancora interi, poi scolali.", "minuti": 15}, {"titolo": "Taglia le verdure", "istruzioni": "Taglia carote e sedano a dadini di circa mezzo centimetro.", "minuti": 0}, {"titolo": "Stufa le verdure", "istruzioni": "Metti i dadini nella casseruola con metà dell'olio e 3 cucchiai d'acqua. Copri e cuoci a fuoco medio-basso finché sono morbidi.", "minuti": 8}, {"titolo": "Aggiungi le lenticchie", "istruzioni": "Sciacqua le lenticchie sotto l'acqua. Uniscile alle verdure con la passata, l'alloro e mezzo bicchiere d'acqua (100 ml). Cuoci a fuoco basso senza coperchio, finché il sugo si è ristretto.", "minuti": 8}, {"titolo": "Completa", "istruzioni": "Togli l'alloro, unisci il grano saraceno, mescola e condisci con l'olio rimasto a crudo.", "minuti": 0}], "consigli": ["Se hai lenticchie secche usane 50 g e lessale a parte per 25-30 minuti."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Mela e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 7, "c": 21, "g": 6, "f": 3}, "voci": "150 g di mela, 20 g di parmigiano"}, "cena": {"titolo": "Petto di pollo alla piastra con bietole al limone", "descrizione": "Semplice, se il pollo resta succoso.", "tempo_minuti": 23, "difficolta": "facile", "piano": true, "nutr": {"kcal": 455, "p": 53, "c": 34, "g": 12, "f": 5}, "ingredienti_principali": ["petto di pollo senza pelle", "gallette di mais o di riso", "bietole"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 15, "ingredienti": [{"nome": "petto di pollo senza pelle", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "bietole", "quantita": "300 g"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "origano", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["piastra o padella antiaderente", "padella larga con coperchio", "tagliere"], "passaggi": [{"titolo": "Prepara il pollo", "istruzioni": "Se le fette sono più spesse di 1,5 cm, tagliale a metà nello spessore. Asciugale con carta da cucina.", "minuti": 0}, {"titolo": "Prepara le bietole", "istruzioni": "Lavale e tagliale a strisce di 3 cm, tenendo separate le coste bianche dalle foglie.", "minuti": 0}, {"titolo": "Cuoci il pollo", "istruzioni": "Scalda la piastra a fuoco medio-alto per 2 minuti, senza grassi. Cuoci il pollo 4 minuti per lato senza muoverlo: è pronto quando all'interno è bianco e il succo che esce è trasparente.", "minuti": 8}, {"titolo": "Cuoci le bietole", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi prima le coste, dopo 3 minuti le foglie, copri e cuoci finché sono appassite.", "minuti": 7}, {"titolo": "Condisci", "istruzioni": "Lascia riposare il pollo 2 minuti, poi condiscilo con l'olio rimasto, il limone, l'origano e il sale. Servi con le bietole e le gallette.", "minuti": 2}], "consigli": ["Il riposo finale serve: i succhi si ridistribuiscono e la carne resta morbida."], "conservazione": "In frigorifero fino a 1 giorno."}}}, "gio": {"colazione": {"titolo": "Pane integrale tostato con ricotta e marmellata", "descrizione": "Una colazione che sazia a lungo.", "tempo_minuti": 6, "difficolta": "facile", "piano": true, "nutr": {"kcal": 255, "p": 13, "c": 39, "g": 5, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "pane integrale", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 3, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["tostapane o padella", "pentolino"], "passaggi": [{"titolo": "Tosta il pane", "istruzioni": "Tosta la fetta nel tostapane, oppure in padella asciutta a fuoco medio girandola a metà, finché è dorata e croccante fuori.", "minuti": 3}, {"titolo": "Farcisci", "istruzioni": "Spalma prima la ricotta e poi la marmellata. Scalda il latte finché è tiepido.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Clementine e anacardi", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 4, "c": 23, "g": 7, "f": 3}, "voci": "150 g di clementine, 15 g di anacardi"}, "pranzo": {"titolo": "Crostoni integrali con ricotta, funghi al timo e radicchio", "descrizione": "Caldo e croccante, pronto in venti minuti.", "tempo_minuti": 18, "difficolta": "facile", "piano": true, "nutr": {"kcal": 460, "p": 27, "c": 47, "g": 18, "f": 13}, "ingredienti_principali": ["pane integrale", "ricotta vaccina light", "funghi champignon", "radicchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 10, "ingredienti": [{"nome": "pane integrale", "quantita": "90 g (2-3 fette)"}, {"nome": "ricotta vaccina light", "quantita": "100 g"}, {"nome": "funghi champignon", "quantita": "250 g"}, {"nome": "radicchio", "quantita": "50 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "aceto di mele", "quantita": "qualche goccia"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella larga", "tostapane o padella", "ciotolina"], "passaggi": [{"titolo": "Prepara le verdure", "istruzioni": "Pulisci i funghi con un panno umido e affettali a 3 mm. Taglia il radicchio a listarelle sottili.", "minuti": 0}, {"titolo": "Cuoci i funghi", "istruzioni": "Scalda metà dell'olio nella padella a fuoco medio-alto. Aggiungi i funghi e il sale e cuoci mescolando ogni tanto: sono pronti quando l'acqua è evaporata e sono dorati. Unisci le foglioline di timo.", "minuti": 7}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti, girandole a metà se usi la padella.", "minuti": 3}, {"titolo": "Componi i crostoni", "istruzioni": "Spalma la ricotta sul pane e distribuisci sopra i funghi. Condisci il radicchio con l'olio rimasto e l'aceto e servilo sopra o accanto.", "minuti": 0}], "consigli": ["Non lavare i funghi sotto l'acqua: la assorbono e in padella lessano invece di dorarsi."], "conservazione": "I funghi cotti si conservano 1 giorno in frigorifero; componi i crostoni al momento."}}, "spuntino2": {"titolo": "Kiwi e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 175, "p": 17, "c": 28, "g": 1, "f": 4}, "voci": "150 g di kiwi, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Merluzzo al cartoccio con carote e finocchio", "descrizione": "Cuoce nel suo vapore e resta tenerissimo.", "tempo_minuti": 30, "difficolta": "facile", "piano": true, "nutr": {"kcal": 395, "p": 41, "c": 32, "g": 11, "f": 10}, "ingredienti_principali": ["filetto di merluzzo", "pane integrale", "carote", "finocchio"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "filetto di merluzzo", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "100 g"}, {"nome": "finocchio", "quantita": "150 g"}, {"nome": "timo", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "2 fette"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["carta forno", "teglia"], "passaggi": [{"titolo": "Prepara", "istruzioni": "Accendi il forno a 190 °C (statico). Taglia le carote a rondelle di 2 mm e il finocchio a fettine sottili: devono essere fini, perché cuociono poco.", "minuti": 0}, {"titolo": "Chiudi il cartoccio", "istruzioni": "Stendi un foglio di carta forno di 40 cm. Metti le verdure al centro, sopra il merluzzo, poi l'olio, il timo, le fette di limone, il sale e 2 cucchiai d'acqua. Unisci i lembi e arrotolali stretti, così il vapore non esce.", "minuti": 0}, {"titolo": "Cuoci", "istruzioni": "Inforna il cartoccio sulla teglia. È pronto quando si è gonfiato; dentro, il pesce deve essere bianco opaco e sfaldarsi.", "minuti": 20}, {"titolo": "Servi", "istruzioni": "Apri il cartoccio con attenzione per il vapore, aspetta 2 minuti e servi con il pane.", "minuti": 2}], "consigli": ["Vanno bene anche nasello, platessa o branzino, con gli stessi tempi."], "conservazione": "Meglio appena fatto."}}}, "ven": {"colazione": {"titolo": "Latte e cereali integrali", "descrizione": "La più rapida della settimana.", "tempo_minuti": 4, "difficolta": "facile", "piano": true, "nutr": {"kcal": 210, "p": 9, "c": 36, "g": 3, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "cereali integrali"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 2, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "cereali integrali", "quantita": "40 g", "note": "senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "tazza grande"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Unisci", "istruzioni": "Versa il latte nella tazza e aggiungi i cereali poco prima di mangiare, così restano croccanti.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Arancia e mandorle", "semplice": true, "piano": true, "nutr": {"kcal": 160, "p": 5, "c": 18, "g": 8, "f": 6}, "voci": "150 g di arancia, 15 g di mandorle"}, "pranzo": {"titolo": "Bruschette integrali con tonno e finocchio croccante", "descrizione": "Niente fornelli, solo il tostapane.", "tempo_minuti": 12, "difficolta": "facile", "piano": true, "nutr": {"kcal": 400, "p": 23, "c": 40, "g": 16, "f": 10}, "ingredienti_principali": ["pane integrale", "tonno all'olio di oliva", "finocchio", "insalata verde"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 4, "ingredienti": [{"nome": "pane integrale", "quantita": "80 g (2 fette)"}, {"nome": "tonno all'olio di oliva", "quantita": "1 scatoletta piccola (52 g sgocciolato)"}, {"nome": "finocchio", "quantita": "200 g (1 piccolo)"}, {"nome": "insalata verde", "quantita": "50 g"}, {"nome": "aceto di mele", "quantita": "1 cucchiaino"}, {"nome": "prezzemolo", "quantita": "1 cucchiaio tritato"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino", "tostapane o padella", "ciotola"], "passaggi": [{"titolo": "Sgocciola il tonno", "istruzioni": "Versa il tonno nel colino e lascialo sgocciolare bene, poi sbriciolalo con una forchetta.", "minuti": 2}, {"titolo": "Prepara l'insalata", "istruzioni": "Affetta il finocchio il più sottile possibile, lava e asciuga l'insalata. Condisci tutto nella ciotola con l'olio, l'aceto e il sale.", "minuti": 0}, {"titolo": "Tosta il pane", "istruzioni": "Tosta le fette finché sono dorate e croccanti.", "minuti": 3}, {"titolo": "Componi", "istruzioni": "Distribuisci il tonno sulle bruschette, completa con il prezzemolo e servi con l'insalata di finocchio.", "minuti": 0}], "consigli": ["Se il finocchio ha le barbine verdi, tritale e usale al posto del prezzemolo."], "conservazione": "Da preparare al momento."}}, "spuntino2": {"titolo": "Uva e yogurt greco", "semplice": true, "piano": true, "nutr": {"kcal": 190, "p": 16, "c": 33, "g": 0, "f": 1}, "voci": "150 g di uva, 150 g di yogurt greco bianco 0%"}, "cena": {"titolo": "Frittata al forno con spinaci", "descrizione": "Alta e soffice, senza doverla girare.", "tempo_minuti": 26, "difficolta": "facile", "piano": true, "nutr": {"kcal": 415, "p": 26, "c": 30, "g": 21, "f": 8}, "ingredienti_principali": ["uova", "pane integrale", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 18, "ingredienti": [{"nome": "uova", "quantita": "2"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "spinaci freschi", "quantita": "250 g"}, {"nome": "noce moscata", "quantita": "1 pizzico"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["padella con coperchio", "ciotola", "pirofila piccola (circa 16 cm)"], "passaggi": [{"titolo": "Appassisci gli spinaci", "istruzioni": "Accendi il forno a 180 °C (statico). Metti gli spinaci lavati nella padella senza aggiungere acqua, copri e cuoci a fuoco medio finché sono appassiti.", "minuti": 3}, {"titolo": "Strizza e trita", "istruzioni": "Strizzali bene tra le mani o in un colino, poi tritali grossolanamente: se restano bagnati la frittata non rassoda.", "minuti": 0}, {"titolo": "Prepara il composto", "istruzioni": "Sbatti le uova con il sale e la noce moscata, poi unisci gli spinaci.", "minuti": 0}, {"titolo": "Cuoci in forno", "istruzioni": "Ungi la pirofila con metà dell'olio, versa il composto e inforna. È pronta quando è soda al centro e dorata in superficie.", "minuti": 15}, {"titolo": "Servi", "istruzioni": "Lasciala riposare, condisci con l'olio rimasto a crudo e servi con il pane.", "minuti": 3}], "consigli": ["Con gli spinaci surgelati usa 200 g, scongelati e strizzati."], "conservazione": "In frigorifero fino a 1 giorno; buona anche a temperatura ambiente."}}}, "sab": {"colazione": {"titolo": "Fette biscottate integrali con marmellata", "descrizione": "Con un velo di burro di arachidi, se ti va.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 290, "p": 12, "c": 43, "g": 7, "f": 4}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "fette biscottate integrali", "marmellata", "burro di arachidi 100%"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "fette biscottate integrali", "quantita": "40 g (4-5 fette)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}, {"nome": "burro di arachidi 100%", "quantita": "1 cucchiaino raso (5 g)", "note": "a piacere"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le fette", "istruzioni": "Spalma un velo di burro di arachidi e sopra la marmellata, dividendola tra le fette.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Uva", "semplice": true, "piano": true, "nutr": {"kcal": 105, "p": 1, "c": 27, "g": 0, "f": 1}, "voci": "150 g di uva"}, "pranzo": {"titolo": "Straccetti di tacchino al limone con carote al forno", "descrizione": "Il secondo scelto per il sabato: carne magra.", "tempo_minuti": 37, "difficolta": "facile", "piano": true, "nutr": {"kcal": 500, "p": 55, "c": 42, "g": 13, "f": 11}, "ingredienti_principali": ["petto di tacchino", "pane integrale", "carote"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 10, "tempo_cottura_minuti": 27, "ingredienti": [{"nome": "petto di tacchino", "quantita": "200 g"}, {"nome": "pane integrale", "quantita": "50 g (1 fetta grande)"}, {"nome": "carote", "quantita": "250 g"}, {"nome": "rosmarino", "quantita": "1 rametto"}, {"nome": "limone", "quantita": "mezzo (succo e scorza)"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["teglia con carta forno", "padella antiaderente", "tagliere"], "passaggi": [{"titolo": "Prepara le carote", "istruzioni": "Accendi il forno a 200 °C (statico). Pela le carote e tagliale a bastoncini spessi 1 cm.", "minuti": 0}, {"titolo": "Cuoci le carote", "istruzioni": "Disponile sulla teglia con metà dell'olio, il rosmarino e il sale. Inforna e girale a metà cottura: sono pronte quando sono tenere e dorate sui bordi.", "minuti": 25}, {"titolo": "Taglia il tacchino", "istruzioni": "Taglia il petto a strisce larghe 1 cm.", "minuti": 0}, {"titolo": "Cuoci gli straccetti", "istruzioni": "Scalda bene la padella a fuoco medio-alto con l'olio rimasto. Aggiungi il tacchino e cuoci mescolando finché è dorato fuori e bianco all'interno, senza parti rosa.", "minuti": 5}, {"titolo": "Profuma", "istruzioni": "Versa il succo di limone, lascia sfumare e spegni. Completa con la scorza grattugiata e servi con le carote e il pane.", "minuti": 1}], "consigli": ["Non salare il tacchino prima della cottura: perde acqua e si asciuga."], "conservazione": "In frigorifero fino a 1 giorno."}}, "spuntino2": {"titolo": "Arancia", "semplice": true, "piano": true, "nutr": {"kcal": 70, "p": 1, "c": 18, "g": 0, "f": 4}, "voci": "150 g di arancia"}, "cena": null}, "dom": {"colazione": {"titolo": "Gallette con ricotta e marmellata", "descrizione": "Fresca e leggera, con il latte tiepido.", "tempo_minuti": 5, "difficolta": "facile", "piano": true, "nutr": {"kcal": 265, "p": 11, "c": 43, "g": 5, "f": 1}, "ingredienti_principali": ["latte vaccino parzialmente scremato", "gallette di mais o di riso", "ricotta vaccina light", "marmellata"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 3, "tempo_cottura_minuti": 2, "ingredienti": [{"nome": "latte vaccino parzialmente scremato", "quantita": "150 ml"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "ricotta vaccina light", "quantita": "1 cucchiaio (30 g)"}, {"nome": "marmellata", "quantita": "1 cucchiaio raso (20 g)", "note": "con almeno il 45% di frutta e senza zuccheri aggiunti"}], "attrezzatura": ["pentolino", "coltello da spalmare"], "passaggi": [{"titolo": "Scalda il latte", "istruzioni": "Versa il latte in un pentolino e scaldalo a fuoco basso, senza farlo bollire.", "minuti": 2}, {"titolo": "Prepara le gallette", "istruzioni": "Spalma la ricotta sulle gallette e completa con la marmellata.", "minuti": 0}], "consigli": [], "conservazione": "Da preparare al momento."}}, "spuntino1": {"titolo": "Kaki e noci", "semplice": true, "piano": true, "nutr": {"kcal": 210, "p": 3, "c": 29, "g": 11, "f": 6}, "voci": "150 g di kaki, 15 g di noci"}, "pranzo": {"titolo": "Quinoa con ceci, spinaci e curcuma", "descrizione": "Colorata, completa, senza glutine.", "tempo_minuti": 25, "difficolta": "facile", "piano": true, "nutr": {"kcal": 575, "p": 27, "c": 67, "g": 19, "f": 17}, "ingredienti_principali": ["quinoa", "ceci in scatola o in vetro", "spinaci freschi"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 5, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "quinoa", "quantita": "70 g"}, {"nome": "ceci in scatola o in vetro", "quantita": "150 g", "note": "peso sgocciolato"}, {"nome": "spinaci freschi", "quantita": "200 g"}, {"nome": "curcuma", "quantita": "mezzo cucchiaino"}, {"nome": "succo di limone", "quantita": "1 cucchiaio"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["colino a maglie fitte", "pentolino con coperchio", "padella larga con coperchio"], "passaggi": [{"titolo": "Sciacqua la quinoa", "istruzioni": "Mettila nel colino e sciacquala sotto l'acqua corrente per 30 secondi, strofinandola con le dita: toglie il retrogusto amaro.", "minuti": 0}, {"titolo": "Cuoci la quinoa", "istruzioni": "Versala nel pentolino con 150 ml d'acqua, la curcuma e il sale. Porta a bollore, poi copri e abbassa il fuoco al minimo. È pronta quando l'acqua è assorbita e si vede il germoglio bianco attorno al chicco.", "minuti": 12}, {"titolo": "Lascia riposare", "istruzioni": "Spegni e lascia la quinoa coperta, poi sgranala con una forchetta.", "minuti": 5}, {"titolo": "Cuoci spinaci e ceci", "istruzioni": "Nella padella scalda metà dell'olio a fuoco medio. Aggiungi gli spinaci lavati, copri finché sono appassiti, poi unisci i ceci sciacquati e scaldali mescolando.", "minuti": 5}, {"titolo": "Unisci", "istruzioni": "Aggiungi la quinoa, il succo di limone e l'olio rimasto a crudo. Mescola e servi tiepido.", "minuti": 0}], "consigli": ["Se hai ceci secchi usane 50 g: ammollo di 12 ore e 40 minuti di cottura."], "conservazione": "In frigorifero fino a 2 giorni."}}, "spuntino2": {"titolo": "Pera e parmigiano", "semplice": true, "piano": true, "nutr": {"kcal": 165, "p": 7, "c": 22, "g": 6, "f": 5}, "voci": "150 g di pera, 20 g di parmigiano"}, "cena": {"titolo": "Scaloppine di vitello al limone e salvia con verza stufata", "descrizione": "La cena della domenica, senza farina.", "tempo_minuti": 28, "difficolta": "media", "piano": true, "nutr": {"kcal": 500, "p": 51, "c": 33, "g": 16, "f": 10}, "ingredienti_principali": ["fettine di vitello", "gallette di mais o di riso", "cavolo verza"], "dettaglio": {"porzioni": 1, "tempo_preparazione_minuti": 8, "tempo_cottura_minuti": 20, "ingredienti": [{"nome": "fettine di vitello", "quantita": "200 g"}, {"nome": "gallette di mais o di riso", "quantita": "4"}, {"nome": "cavolo verza", "quantita": "300 g"}, {"nome": "salvia", "quantita": "4 foglie"}, {"nome": "succo di limone", "quantita": "mezzo limone"}, {"nome": "olio extravergine d'oliva", "quantita": "10 ml (1 cucchiaio)"}, {"nome": "sale fino", "quantita": "1 pizzico"}], "attrezzatura": ["casseruola con coperchio", "padella antiaderente larga"], "passaggi": [{"titolo": "Taglia la verza", "istruzioni": "Elimina il torsolo e taglia le foglie a listarelle di 1 cm.", "minuti": 0}, {"titolo": "Stufa la verza", "istruzioni": "Mettila nella casseruola con metà dell'olio, 4 cucchiai d'acqua e il sale. Copri e cuoci a fuoco medio-basso mescolando ogni tanto, finché è tenera.", "minuti": 15}, {"titolo": "Cuoci le scaloppine", "istruzioni": "Scalda la padella a fuoco medio-alto con l'olio rimasto e la salvia. Cuoci le fettine 2 minuti per lato, finché sono dorate.", "minuti": 4}, {"titolo": "Fai la salsa", "istruzioni": "Versa il succo di limone e 2 cucchiai d'acqua, muovi la padella e lascia restringere fino a ottenere una salsina che vela la carne.", "minuti": 1}, {"titolo": "Servi", "istruzioni": "Disponi le scaloppine con la loro salsa accanto alla verza e accompagna con le gallette.", "minuti": 0}], "consigli": ["Se le fettine si arricciano in cottura, incidi i bordi con due piccoli tagli."], "conservazione": "In frigorifero fino a 1 giorno."}}}};
+
+const OGGI = ["dom", "lun", "mar", "mer", "gio", "ven", "sab"][new Date().getDay()];
+const state = {
+  key: store.get("key", ""),
+  model: store.get("model", ""),
+  models: store.get("models", []),
+  tab: store.get("tab", "frigo"),
+  day: OGGI,
+  photos: [],                              // { dataUrl, base64 }
+  photosAnalyzed: true,
+  ingredients: store.get("ingredients", []),
+  recipes: [],                             // scheda «Dal frigo»
+  pmRecipes: [],                           // scheda «Per me», dalla foto
+  alt: {},                                 // alternative proposte per i pasti della settimana
+  current: null,
+  busy: false
+};
+
+const $ = (id) => document.getElementById(id);
+const API = "https://generativelanguage.googleapis.com/v1beta";
+const DEFAULT_MODEL = "gemini-flash-latest";
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+/* ---------- Messaggi di stato ---------- */
+function setStatus(box, text, kind) {
+  box.textContent = "";
+  if (!text) return;
+  const s = el("div", "status" + (kind === "error" ? " error" : ""));
+  if (kind === "loading") s.appendChild(el("span", "spinner"));
+  s.appendChild(el("span", "", text));
+  box.appendChild(s);
+}
+
+/* ---------- Chiamate alla API di Google ---------- */
+function explainError(status, message) {
+  const m = (message || "").toLowerCase();
+  if (status === 429) return "Limite gratuito raggiunto per questo modello. Aspetta un minuto oppure scegli un altro modello nelle Impostazioni.";
+  if (status === 400 && m.includes("api key")) return "La chiave API non è valida. Controllala nelle Impostazioni.";
+  if (status === 401 || status === 403) return "La chiave API non è autorizzata. Controllala nelle Impostazioni.";
+  if (status === 404) return "Questo modello non è disponibile. Scegline un altro nelle Impostazioni.";
+  if (status === 503 || status === 500) return "Il servizio di Google è sovraccarico. Riprova tra qualche secondo.";
+  return "Errore " + status + ": " + (message || "richiesta non riuscita.");
+}
+
+async function apiFetch(path, options) {
+  let res;
+  try {
+    res = await fetch(API + path, Object.assign({}, options, {
+      headers: Object.assign({ "x-goog-api-key": state.key, "Content-Type": "application/json" }, (options && options.headers) || {})
+    }));
+  } catch (e) {
+    throw new Error("Connessione non riuscita. Controlla la rete e riprova.");
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(explainError(res.status, data && data.error && data.error.message));
+  return data;
+}
+
+/* Il terzo parametro (kind) serve solo alla versione dimostrativa. */
+async function askModel(parts, temperature, kind) {
+  const model = state.model || DEFAULT_MODEL;
+  const data = await apiFetch("/models/" + encodeURIComponent(model) + ":generateContent", {
+    method: "POST",
+    body: JSON.stringify({ contents: [{ role: "user", parts: parts }], generationConfig: { temperature: temperature } })
+  });
+  const cand = data && data.candidates && data.candidates[0];
+  const text = cand && cand.content && cand.content.parts
+    ? cand.content.parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join("")
+    : "";
+  if (!text) throw new Error("Il modello non ha risposto. Riprova o cambia modello nelle Impostazioni.");
+  return text;
+}
+
+/* Estrae il JSON dalla risposta anche se il modello aggiunge testo attorno. */
+function parseJson(text) {
+  const start = text.search(/[\[{]/);
+  const end = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
+  if (start === -1 || end <= start) throw new Error("Risposta del modello non leggibile. Riprova.");
+  try { return JSON.parse(text.slice(start, end + 1)); }
+  catch (e) { throw new Error("Risposta del modello non leggibile. Riprova."); }
+}
+
+/* ---------- Elenco dei modelli ---------- */
+const EXCLUDE = /image|tts|embedding|live|audio|aqa|robotics|computer|veo|imagen|transcribe|translate|learnlm|guard/;
+
+function pickDefault(models) {
+  let best = null, bestV = -1;
+  for (const m of models) {
+    const hit = /^gemini-(\d+(?:\.\d+)?)-flash$/.exec(m.id);
+    if (hit && parseFloat(hit[1]) > bestV) { bestV = parseFloat(hit[1]); best = m.id; }
+  }
+  if (best) return best;
+  if (models.some((m) => m.id === DEFAULT_MODEL)) return DEFAULT_MODEL;
+  return models.length ? models[0].id : DEFAULT_MODEL;
+}
+
+async function loadModels() {
+  const data = await apiFetch("/models?pageSize=1000", { method: "GET" });
+  const list = ((data && data.models) || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map((m) => ({ id: String(m.name || "").replace(/^models\//, ""), label: m.displayName || m.name }))
+    .filter((m) => /^(gemini|gemma)/.test(m.id) && !EXCLUDE.test(m.id))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  state.models = list;
+  store.set("models", list);
+  if (!state.model || !list.some((m) => m.id === state.model)) {
+    state.model = pickDefault(list);
+    store.set("model", state.model);
+  }
+  renderModels();
+}
+
+function renderModels() {
+  const sel = $("in-model");
+  sel.textContent = "";
+  const list = state.models.length ? state.models : [{ id: DEFAULT_MODEL, label: "Gemini Flash (predefinito)" }];
+  for (const m of list) {
+    const o = el("option", "", m.label + " (" + m.id + ")");
+    o.value = m.id;
+    sel.appendChild(o);
+  }
+  sel.value = state.model || list[0].id;
+}
+
+/* ---------- Impostazioni ---------- */
+function toggleSettings(open) {
+  const box = $("settings");
+  const show = open === undefined ? box.hidden : open;
+  box.hidden = !show;
+  $("btn-settings").setAttribute("aria-expanded", String(show));
+  if (show) { $("in-key").value = state.key; renderModels(); }
+}
+
+async function saveSettings(reload) {
+  const key = $("in-key").value.trim();
+  if (!key) { setStatus($("settings-status"), "Incolla prima la chiave API.", "error"); return; }
+  const keyChanged = key !== state.key;
+  state.key = key; store.set("key", key);
+  if (!keyChanged && !reload) { state.model = $("in-model").value; store.set("model", state.model); }
+  try {
+    if (keyChanged || reload || !state.models.length) {
+      setStatus($("settings-status"), "Controllo la chiave e carico i modelli…", "loading");
+      await loadModels();
+      setStatus($("settings-status"), "Chiave valida. Modello scelto: " + state.model + ". Puoi cambiarlo e toccare di nuovo Salva.");
+    } else {
+      setStatus($("settings-status"), "Salvato.");
+      toggleSettings(false);
+    }
+  } catch (e) {
+    setStatus($("settings-status"), e.message, "error");
+  }
+}
+
+function requireKey(statusEl) {
+  if (state.key) return true;
+  toggleSettings(true);
+  setStatus(statusEl, "Prima inserisci la chiave gratuita di Google nelle Impostazioni, in alto.", "error");
+  $("settings").scrollIntoView({ behavior: "smooth", block: "start" });
+  return false;
+}
+
+/* ---------- Schede ---------- */
+function setTab(tab) {
+  state.tab = tab === "perme" ? "perme" : "frigo";
+  store.set("tab", state.tab);
+  $("app").dataset.tab = state.tab;
+  $("tab-frigo").setAttribute("aria-selected", String(state.tab === "frigo"));
+  $("tab-perme").setAttribute("aria-selected", String(state.tab === "perme"));
+}
+
+/* ---------- Foto (condivise tra le due schede) ---------- */
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 1280;
+      const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * scale);
+      c.height = Math.round(img.naturalHeight * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const dataUrl = c.toDataURL("image/jpeg", 0.82);
+      resolve({ dataUrl: dataUrl, base64: dataUrl.split(",")[1] });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Non riesco a leggere questa immagine.")); };
+    img.src = url;
+  });
+}
+
+async function addPhotos(files, statusEl) {
+  for (const f of Array.from(files || [])) {
+    if (state.photos.length >= 6) { setStatus(statusEl, "Massimo 6 foto per volta.", "error"); break; }
+    try { state.photos.push(await shrink(f)); state.photosAnalyzed = false; }
+    catch (e) { setStatus(statusEl, e.message, "error"); }
+  }
+  renderPhotos();
+}
+
+function renderPhotos() {
+  ["thumbs", "thumbs2"].forEach((id) => {
+    const box = $(id);
+    box.textContent = "";
+    state.photos.forEach((p, i) => {
+      const d = el("div", "thumb");
+      const img = el("img"); img.src = p.dataUrl; img.alt = "Foto " + (i + 1);
+      const b = el("button", "", "×"); b.type = "button"; b.setAttribute("aria-label", "Rimuovi foto " + (i + 1));
+      b.addEventListener("click", () => { state.photos.splice(i, 1); renderPhotos(); });
+      d.appendChild(img); d.appendChild(b); box.appendChild(d);
+    });
+  });
+  $("btn-analyze").hidden = state.photos.length === 0;
+}
+
+function promptIngredienti() {
+  return "Sei un assistente di cucina. Guarda le foto di un frigorifero, di una dispensa o di una spesa ed elenca gli alimenti " +
+    "che riconosci con ragionevole certezza. Usa nomi generici in italiano, in minuscolo (per esempio: uova, zucchine, " +
+    "yogurt bianco, petto di pollo). Non inventare alimenti che non si vedono. Ignora ciò che non è cibo. " +
+    "Non ripetere lo stesso alimento. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"ingredienti":["...","..."]}';
+}
+
+/* Riconosce gli alimenti nelle foto e li aggiunge all'elenco. Restituisce quanti ne ha aggiunti. */
+async function recognize() {
+  const parts = state.photos.map((p) => ({ inlineData: { mimeType: "image/jpeg", data: p.base64 } }));
+  parts.push({ text: promptIngredienti() });
+  const out = parseJson(await askModel(parts, 0.2, "ingredienti"));
+  const found = Array.isArray(out) ? out : (out.ingredienti || []);
+  let added = 0;
+  for (const name of found) if (addIngredient(name, true)) added++;
+  state.photosAnalyzed = true;
+  saveIngredients(); renderIngredients();
+  return added;
+}
+
+async function analyze() {
+  if (state.busy || !state.photos.length || !requireKey($("photo-status"))) return;
+  setBusy(true);
+  setStatus($("photo-status"), "Guardo le foto…", "loading");
+  try {
+    const added = await recognize();
+    setStatus($("photo-status"), added
+      ? "Trovati " + added + " alimenti. Controlla l'elenco qui sotto: togli gli errori e aggiungi ciò che manca."
+      : "Non ho riconosciuto alimenti nuovi. Prova con una foto più vicina o più luminosa.");
+    if (added) $("sec-ingredients").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    setStatus($("photo-status"), e.message, "error");
+  }
+  setBusy(false);
+}
+
+/* ---------- Ingredienti (condivisi tra le due schede) ---------- */
+function addIngredient(name, silent) {
+  const clean = String(name || "").trim().toLowerCase().slice(0, 60);
+  if (!clean || state.ingredients.includes(clean)) return false;
+  state.ingredients.push(clean);
+  if (!silent) { saveIngredients(); renderIngredients(); }
+  return true;
+}
+function saveIngredients() { store.set("ingredients", state.ingredients); }
+
+function renderIngredients() {
+  ["chips", "chips2"].forEach((id) => {
+    const ul = $(id);
+    ul.textContent = "";
+    state.ingredients.forEach((name, i) => {
+      const li = el("li");
+      const b = el("button", "", "×"); b.type = "button"; b.setAttribute("aria-label", "Togli " + name);
+      b.addEventListener("click", () => { state.ingredients.splice(i, 1); saveIngredients(); renderIngredients(); });
+      li.appendChild(el("span", "", name)); li.appendChild(b); ul.appendChild(li);
+    });
+  });
+  const has = state.ingredients.length > 0;
+  $("ing-empty").hidden = has;
+  $("btn-clear").hidden = !has;
+  $("btn-recipes").disabled = !has || state.busy;
+}
+
+/* ---------- Calorie e nutrienti ---------- */
+/* Accetta sia il formato del modello (proteine_g…) sia quello interno (p, c, g, f). */
+function normN(n) {
+  if (!n || typeof n !== "object") return null;
+  const num = (v) => { const x = Math.round(Number(v)); return isFinite(x) && x >= 0 ? x : 0; };
+  const out = { kcal: num(n.kcal), p: num(n.p !== undefined ? n.p : n.proteine_g), c: num(n.c !== undefined ? n.c : n.carboidrati_g),
+                g: num(n.g !== undefined ? n.g : n.grassi_g), f: num(n.f !== undefined ? n.f : n.fibre_g) };
+  return out.kcal > 0 ? out : null;
+}
+
+function nutriLine(n) {
+  const p = el("p", "nutri-line");
+  p.appendChild(el("strong", "", n.kcal + " kcal"));
+  p.appendChild(document.createTextNode(" · proteine " + n.p + " g · carboidrati " + n.c + " g · grassi " + n.g + " g"));
+  return p;
+}
+
+function nutriPanel(n, note) {
+  const box = el("div", "nutri");
+  const k = el("div", "kcal", String(n.kcal));
+  k.appendChild(el("small", "", "kcal per porzione"));
+  box.appendChild(k);
+  const grid = el("div", "macros");
+  [["Proteine", n.p], ["Carboidrati", n.c], ["Grassi", n.g], ["Fibre", n.f]].forEach((x) => {
+    const d = el("div"); d.appendChild(el("b", "", x[1] + " g")); d.appendChild(el("span", "", x[0])); grid.appendChild(d);
+  });
+  box.appendChild(grid);
+  // Da dove arrivano le calorie: 4 kcal per grammo di proteine e carboidrati, 9 per i grassi.
+  const ep = n.p * 4, ec = n.c * 4, eg = n.g * 9, tot = ep + ec + eg;
+  if (tot > 0) {
+    const bar = el("div", "macro-bar"), leg = el("div", "legend");
+    [["mp", ep, "proteine"], ["mc", ec, "carboidrati"], ["mg", eg, "grassi"]].forEach((x) => {
+      const pct = Math.round(x[1] / tot * 100);
+      const seg = el("i", x[0]); seg.style.width = pct + "%"; bar.appendChild(seg);
+      const item = el("span"); item.appendChild(el("i", "macro-bar-key " + x[0])); item.appendChild(document.createTextNode(pct + "% delle calorie da " + x[2]));
+      leg.appendChild(item);
+    });
+    bar.setAttribute("role", "img"); bar.setAttribute("aria-label", "Ripartizione delle calorie tra proteine, carboidrati e grassi");
+    box.appendChild(bar); box.appendChild(leg);
+  }
+  box.appendChild(el("p", "muted", note));
+  return box;
+}
+
+/* ---------- Scheda di una ricetta nell'elenco ---------- */
+function pillsFor(r, d) {
+  const pills = el("div", "pills");
+  if (d && d.porzioni) pills.appendChild(el("span", "pill", d.porzioni + (d.porzioni == 1 ? " porzione" : " porzioni")));
+  if (d && d.tempo_preparazione_minuti) pills.appendChild(el("span", "pill", "preparazione " + d.tempo_preparazione_minuti + " min"));
+  if (d && d.tempo_cottura_minuti) pills.appendChild(el("span", "pill", "cottura " + d.tempo_cottura_minuti + " min"));
+  if (!d && r.tempo_minuti) pills.appendChild(el("span", "pill", r.tempo_minuti + " min"));
+  if (r.difficolta) pills.appendChild(el("span", "pill", String(r.difficolta)));
+  if (!r.piano) {
+    const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
+    pills.appendChild(buy.length
+      ? el("span", "pill buy", buy.length === 1 ? "manca 1 ingrediente" : "mancano " + buy.length + " ingredienti")
+      : el("span", "pill ok", "hai già tutto"));
+  }
+  return pills;
+}
+
+function recipeCard(r) {
+  const card = el("button", "recipe-card");
+  card.type = "button";
+  card.appendChild(el("h3", "", String(r.titolo)));
+  if (r.descrizione) card.appendChild(el("p", "muted", String(r.descrizione)));
+  card.appendChild(pillsFor(r));
+  if (r.nutr) card.appendChild(nutriLine(r.nutr));
+  const main = Array.isArray(r.ingredienti_principali) ? r.ingredienti_principali.filter(Boolean) : [];
+  if (main.length && !r.piano) card.appendChild(el("p", "muted", "Con: " + main.join(", ")));
+  card.appendChild(el("span", "open", "Apri la ricetta →"));
+  card.addEventListener("click", () => openRecipe(r));
+  return card;
+}
+
+/* Prepara le ricette ricevute dal modello: valori nutrizionali normalizzati e dati aggiuntivi. */
+function adopt(out, extra) {
+  return (Array.isArray(out) ? out : (out.ricette || []))
+    .filter((r) => r && r.titolo)
+    .map((r) => Object.assign(r, { nutr: normN(r.nutrizione) }, extra || {}));
+}
+
+/* ---------- Scheda «Dal frigo»: ricette ---------- */
+function contesto() {
+  return {
+    people: Math.max(1, parseInt($("in-people").value, 10) || 2),
+    notes: $("in-notes").value.trim(),
+    pantry: $("in-pantry").checked,
+    plan: $("in-plan").checked
+  };
+}
+
+function dispensa(c) {
+  if (!c.pantry) return "Non dare per scontato nessun altro ingrediente oltre a sale e acqua. ";
+  return c.plan
+    ? "In casa c'è anche la dispensa di base (olio extravergine d'oliva, sale, erbe aromatiche, spezie delicate, pasta, riso, farina). "
+    : "In casa c'è anche la dispensa di base (olio, sale, pepe, spezie comuni, pasta, riso, farina, aglio, cipolla). ";
+}
+
+function promptRicette(avoid) {
+  const c = contesto();
+  const time = parseInt($("in-time").value, 10);
+  let p = "Sei un cuoco di casa italiano, pratico. Ingredienti disponibili: " + state.ingredients.join(", ") + ". ";
+  p += dispensa(c);
+  if (c.plan) p += EVITA;
+  p += "Proponi 4 ricette per " + c.people + (c.people === 1 ? " persona" : " persone") + ". ";
+  if (time) p += "Tempo totale massimo: " + time + " minuti. ";
+  if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
+  if (avoid && avoid.length) p += "Non riproporre queste ricette: " + avoid.join("; ") + ". ";
+  p += "Privilegia le ricette che usano il più possibile gli ingredienti disponibili e non richiedono acquisti. " +
+    "Non è obbligatorio usare tutti gli ingredienti. Per ora servono solo le proposte, non il procedimento. " +
+    "Ordina le ricette da quella che richiede meno acquisti. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":30,"difficolta":"facile",' +
+    '"ingredienti_principali":["...","..."],"da_comprare":["..."],' + NUTR_FMT + '}]} ' +
+    'dove "difficolta" è facile, media o impegnativa, "da_comprare" elenca solo ciò che non è tra gli ingredienti disponibili (lista vuota se non serve nulla) e' + NUTR_NOTA;
+  return p;
+}
+
+async function makeRecipes(more) {
+  if (state.busy || !state.ingredients.length || !requireKey($("recipes-status"))) return;
+  setBusy(true);
+  setStatus($("recipes-status"), "Penso alle ricette…", "loading");
+  $("sec-recipes").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const avoid = more ? state.recipes.map((r) => r.titolo) : [];
+    const list = adopt(parseJson(await askModel([{ text: promptRicette(avoid) }], 0.8, "ricette")));
+    if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
+    state.recipes = more ? state.recipes.concat(list) : list;
+    renderRecipes();
+    setStatus($("recipes-status"), "");
+  } catch (e) {
+    setStatus($("recipes-status"), e.message, "error");
+  }
+  setBusy(false);
+}
+
+function renderRecipes() {
+  const box = $("recipes");
+  box.textContent = "";
+  state.recipes.forEach((r) => box.appendChild(recipeCard(r)));
+  const has = state.recipes.length > 0;
+  $("rec-empty").hidden = has;
+  $("rec-hint").hidden = !has;
+  $("btn-more").hidden = !has;
+}
+
+/* ---------- Scheda «Per me»: quantità del menu ---------- */
+function nomeGiorno(d) { return (GIORNI.find((g) => g[0] === d) || ["", d])[1].toLowerCase(); }
+function nomePasto(m) { return (PASTI.find((x) => x[0] === m) || ["", m])[1].toLowerCase(); }
+
+/* Quantità previste per un pasto; null se il pasto è libero. */
+function regola(d, m) {
+  if (m === "colazione") return SENZA_GLUTINE.includes(d) ? REGOLE.colazione_sg : REGOLE.colazione;
+  return REGOLE[m] ? REGOLE[m][d] : null;
+}
+
+function vincoli(d, m) {
+  const sg = SENZA_GLUTINE.includes(d), r = regola(d, m);
+  let t = "Pasto: " + nomePasto(m) + " di " + nomeGiorno(d) + ", per 1 persona. ";
+  t += r
+    ? "Usa ESATTAMENTE queste quantità (pesi a crudo e al netto degli scarti, da non aumentare né ridurre): " + r + ". "
+    : "Per questo pasto non ci sono quantità fissate: proponi un piatto equilibrato e leggero. ";
+  if (sg) t += "In questo giorno tutto deve essere senza glutine. ";
+  if (m !== "colazione") {
+    t += "La verdura è libera: preferisci quella di stagione (" + STAGIONE[new Date().getMonth()] + "). ";
+    t += "Sostituzioni ammesse: al posto di 90 g di pane integrale o di 70 g di riso, 250 g di patate, 150 g di gnocchi di patate o 70 g di polenta" +
+      (sg ? "" : ", oppure 70 g di cous cous, farro, orzo o pasta di semola") +
+      "; al posto di 50 g di pane integrale o di 4 gallette, 140 g di patate; al posto dei 10 ml di olio, 40 g di avocado. ";
+  }
+  t += "Per insaporire sono ammessi erbe aromatiche, spezie delicate, limone, aceto e passata di pomodoro; poco sale. " + EVITA;
+  return t;
+}
+
+function promptPerMe(d, m, n, avoid, withFood) {
+  let p = "Sei un cuoco di casa italiano. Cucini seguendo un menu settimanale con quantità prefissate. " + vincoli(d, m);
+  if (withFood && state.ingredients.length) {
+    p += "In casa ci sono questi alimenti: " + state.ingredients.join(", ") + ". Costruisci le ricette attorno a quelli compatibili con le quantità indicate " +
+      "(le verdure, e la fonte proteica o il cereale quando corrispondono a un'opzione prevista); ignora gli altri e non superare mai quelle quantità. ";
+  }
+  p += "Proponi " + n + (n === 1 ? " ricetta" : " ricette diverse tra loro") + ", varie e appetitose. ";
+  if (avoid && avoid.length) p += "Non riproporre: " + avoid.join("; ") + ". ";
+  p += "Per ora servono solo le proposte, non il procedimento. Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"ricette":[{"titolo":"...","descrizione":"una frase","tempo_minuti":25,"difficolta":"facile",' +
+    '"ingredienti_principali":["...","..."],"da_comprare":["..."],' + NUTR_FMT + '}]} ' +
+    'dove "difficolta" è facile, media o impegnativa, "da_comprare" elenca ciò che serve e non è tra gli alimenti in casa (lista vuota se non è stato indicato nulla) e' + NUTR_NOTA;
+  return p;
+}
+
+/* ---------- Scheda «Per me»: la settimana ---------- */
+function renderDays() {
+  const box = $("days");
+  box.textContent = "";
+  GIORNI.forEach((g) => {
+    const b = el("button", "", g[1].slice(0, 3));
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(g[0] === state.day));
+    b.setAttribute("aria-label", g[1]);
+    b.addEventListener("click", () => { state.day = g[0]; renderDays(); renderWeek(); });
+    box.appendChild(b);
+  });
+}
+
+function renderWeek() {
+  const d = state.day, day = SETTIMANA[d], box = $("week");
+  box.textContent = "";
+  const tot = { kcal: 0, p: 0, c: 0, g: 0 };
+  PASTI.forEach((pm) => {
+    const m = pm[0], base = day[m], alt = state.alt[d + "_" + m], r = alt || base;
+    const wrap = el("div", "meal");
+    wrap.appendChild(el("span", "meal-label", pm[1] + (alt ? " · alternativa" : "")));
+    if (!r) {
+      wrap.appendChild(el("h3", "", "Cena libera"));
+      wrap.appendChild(el("p", "muted", "Nessuna quantità fissata: scegli quello che preferisci. Se vuoi un'idea, usa «Con quello che ho in casa» qui sotto."));
+    } else if (r.semplice) {
+      const s = el("div", "simple");
+      s.appendChild(el("h3", "", r.titolo));
+      s.appendChild(el("p", "muted", r.voci));
+      s.appendChild(nutriLine(r.nutr));
+      wrap.appendChild(s);
+    } else {
+      wrap.appendChild(recipeCard(r));
+    }
+    if (r && r.nutr) { tot.kcal += r.nutr.kcal; tot.p += r.nutr.p; tot.c += r.nutr.c; tot.g += r.nutr.g; }
+    if (base && !base.semplice) {
+      const b = el("button", "small btn-alt", alt ? "Torna alla ricetta del menu" : "Proponi un'alternativa");
+      b.type = "button"; b.disabled = state.busy;
+      b.addEventListener("click", () => {
+        if (alt) { delete state.alt[d + "_" + m]; renderWeek(); } else makeAlt(d, m);
+      });
+      wrap.appendChild(b);
+    }
+    box.appendChild(wrap);
+  });
+  $("day-total").textContent = "Totale di " + nomeGiorno(d) + ": circa " + tot.kcal.toLocaleString("it-IT") + " kcal · proteine " + tot.p +
+    " g · carboidrati " + tot.c + " g · grassi " + tot.g + " g" + (d === "sab" ? " (cena libera esclusa)" : "");
+}
+
+async function makeAlt(d, m) {
+  if (state.busy || !requireKey($("week-status"))) return;
+  setBusy(true);
+  setStatus($("week-status"), "Cerco un'alternativa per " + nomePasto(m) + "…", "loading");
+  try {
+    state.lastSlot = { d: d, m: m, n: 1 };
+    const avoid = [SETTIMANA[d][m].titolo];
+    const list = adopt(parseJson(await askModel([{ text: promptPerMe(d, m, 1, avoid, false) }], 0.9, "perme")), { vincoli: vincoli(d, m), piano: true });
+    if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
+    state.alt[d + "_" + m] = list[0];
+    setStatus($("week-status"), "");
+  } catch (e) {
+    setStatus($("week-status"), e.message, "error");
+  }
+  setBusy(false);
+  renderWeek();
+}
+
+/* ---------- Scheda «Per me»: dalla foto al piatto ---------- */
+function renderRule() {
+  const r = regola($("pm-day").value, $("pm-meal").value);
+  $("pm-rule").textContent = r ? "Quantità previste: " + r + "." : "Questo pasto è libero.";
+}
+
+async function perMeGenerate() {
+  const st = $("pm-status");
+  if (state.busy || !requireKey(st)) return;
+  const d = $("pm-day").value, m = $("pm-meal").value;
+  setBusy(true);
+  try {
+    if (state.photos.length && !state.photosAnalyzed) {
+      setStatus(st, "Guardo le foto…", "loading");
+      await recognize();
+    }
+    setStatus(st, "Combino quello che hai con le quantità del menu…", "loading");
+    state.lastSlot = { d: d, m: m, n: 2 };
+    const list = adopt(parseJson(await askModel([{ text: promptPerMe(d, m, 2, [], true) }], 0.8, "perme")), { vincoli: vincoli(d, m) });
+    if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
+    state.pmRecipes = list;
+    renderPm();
+    setStatus(st, state.ingredients.length ? "" : "Non hai indicato alimenti: ecco due idee con le quantità del menu.");
+  } catch (e) {
+    setStatus(st, e.message, "error");
+  }
+  setBusy(false);
+}
+
+function renderPm() {
+  const box = $("pm-recipes");
+  box.textContent = "";
+  state.pmRecipes.forEach((r) => box.appendChild(recipeCard(r)));
+}
+
+/* ---------- Pagina della ricetta ---------- */
+let wakeLock = null;
+let timer = null;   // { id, button, label }
+
+function promptDettaglio(r) {
+  const c = contesto();
+  const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
+  let p = "Sei un cuoco di casa italiano che spiega a una persona non esperta. Scrivi la ricetta completa e precisa di «" +
+    r.titolo + "»" + (r.descrizione ? " (" + r.descrizione + ")" : "") + ". ";
+  if (r.vincoli) {
+    p += r.vincoli;
+    if (state.ingredients.length) p += "Alimenti disponibili in casa: " + state.ingredients.join(", ") + ". ";
+  } else {
+    p += "È per " + c.people + (c.people === 1 ? " persona" : " persone") + ". Ingredienti disponibili in casa: " + state.ingredients.join(", ") + ". " + dispensa(c);
+    if (c.plan) p += EVITA;
+    if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
+  }
+  if (buy.length) p += "Ingredienti da comprare già previsti: " + buy.join(", ") + ". Non aggiungerne altri. ";
+  if (r.tempo_minuti) p += "Tempo totale indicativo: " + r.tempo_minuti + " minuti. ";
+  p += "Regole: quantità esatte per ogni ingrediente (grammi, millilitri, cucchiai o pezzi), sale compreso. " +
+    "Comincia dalla preparazione degli ingredienti (lavare, tagliare, con forma e dimensione dei pezzi). " +
+    "Ogni passaggio descrive una sola azione e indica: quale pentola o strumento usare, l'intensità del fuoco o la temperatura del forno, " +
+    "la durata in minuti e il segnale per capire che è pronto (colore, consistenza, profumo). " +
+    "Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"porzioni":2,"tempo_preparazione_minuti":10,"tempo_cottura_minuti":15,' +
+    '"ingredienti":[{"nome":"...","quantita":"...","note":"..."}],"attrezzatura":["..."],' +
+    '"passaggi":[{"titolo":"...","istruzioni":"...","minuti":5}],"consigli":["..."],"conservazione":"...",' + NUTR_FMT + '} ' +
+    'dove "minuti" è la durata di cottura o di attesa del passaggio (0 se non c\'è nulla da cronometrare), "note" è facoltativo e' + NUTR_NOTA;
+  return p;
+}
+
+async function openRecipe(r) {
+  if (!r) return;
+  state.current = r;
+  state.scrollBack = window.scrollY || 0;
+  $("detail").hidden = false;
+  $("app").classList.add("in-detail");
+  window.scrollTo(0, 0);
+  try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}  // schermo acceso mentre cucini
+  setStatus($("detail-status"), "");
+  renderDetail(r);
+  if (!r.dettaglio) loadDetail(r);
+}
+
+function closeRecipe() {
+  stopTimer();
+  state.current = null;
+  $("detail").hidden = true;
+  $("app").classList.remove("in-detail");
+  try { if (wakeLock) wakeLock.release(); } catch (e) {}
+  wakeLock = null;
+  window.scrollTo(0, state.scrollBack || 0);
+}
+
+async function loadDetail(r) {
+  if (!r || r.loading) return;
+  if (!state.key) { closeRecipe(); requireKey($(state.tab === "perme" ? "pm-status" : "recipes-status")); return; }
+  r.loading = true;
+  if (state.current === r) setStatus($("detail-status"), "Scrivo dosi e passaggi…", "loading");
+  try {
+    const out = parseJson(await askModel([{ text: promptDettaglio(r) }], 0.4, "dettaglio"));
+    if (!out || !Array.isArray(out.passaggi) || !out.passaggi.length) throw new Error("Istruzioni incomplete. Riprova.");
+    r.dettaglio = out;
+    const n = normN(out.nutrizione);
+    if (n) r.nutr = n;   // la stima fatta sulle dosi esatte è più precisa di quella dell'elenco
+    r.loading = false;
+    if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
+  } catch (e) {
+    r.loading = false;
+    if (state.current === r) { setStatus($("detail-status"), e.message, "error"); renderDetail(r, true); }
+  }
+}
+
+function renderDetail(r, failed) {
+  stopTimer();
+  const d = r.dettaglio;
+  const box = $("detail-body");
+  box.textContent = "";
+  box.appendChild(el("h2", "", String(r.titolo)));
+  if (r.descrizione) box.appendChild(el("p", "muted", String(r.descrizione)));
+  box.appendChild(pillsFor(r, d));
+  const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
+  if (buy.length) box.appendChild(el("p", "buy-line", "Da comprare: " + buy.join(", ")));
+  if (r.nutr) box.appendChild(nutriPanel(r.nutr, r.piano && !r.vincoli
+    ? "Valori stimati dalle quantità della ricetta, con tabelle di composizione degli alimenti."
+    : "Valori stimati dal modello: sono indicativi."));
+  if (!d) {
+    if (failed) {
+      const b = el("button", "primary", "Riprova");
+      b.type = "button";
+      b.addEventListener("click", () => loadDetail(state.current));
+      box.appendChild(b);
+    }
+    return;
+  }
+
+  if (Array.isArray(d.ingredienti) && d.ingredienti.length) {
+    box.appendChild(el("h4", "", "Ingredienti (spunta mentre li prepari)"));
+    const ul = el("ul", "checklist");
+    d.ingredienti.forEach((x, k) => {
+      const li = el("li"), lab = el("label"), cb = el("input"), txt = el("span");
+      cb.type = "checkbox"; cb.id = "ing-" + k; lab.htmlFor = cb.id;
+      if (typeof x === "string") txt.textContent = x;
+      else {
+        if (x.quantita) txt.appendChild(el("span", "qty", String(x.quantita) + " "));
+        txt.appendChild(document.createTextNode(String(x.nome || "")));
+        if (x.note) txt.appendChild(document.createTextNode(" (" + x.note + ")"));
+      }
+      lab.appendChild(cb); lab.appendChild(txt); li.appendChild(lab); ul.appendChild(li);
+    });
+    box.appendChild(ul);
+  }
+  if (Array.isArray(d.attrezzatura) && d.attrezzatura.length) {
+    box.appendChild(el("h4", "", "Cosa ti serve"));
+    box.appendChild(el("p", "", d.attrezzatura.join(", ")));
+  }
+  box.appendChild(el("h4", "", "Procedimento"));
+  const ol = el("ol", "steps");
+  d.passaggi.forEach((s) => {
+    const li = el("li");
+    if (typeof s === "string") li.appendChild(el("span", "", s));
+    else {
+      if (s.titolo) li.appendChild(el("span", "step-title", String(s.titolo)));
+      li.appendChild(el("span", "", String(s.istruzioni || "")));
+      const min = Number(s.minuti) || 0;
+      if (min > 0) {
+        const label = "Avvia timer · " + min + " min";
+        const b = el("button", "small timer", label);
+        b.type = "button";
+        b.addEventListener("click", () => toggleTimer(b, min, label));
+        li.appendChild(b);
+      }
+    }
+    ol.appendChild(li);
+  });
+  box.appendChild(ol);
+  if (Array.isArray(d.consigli) && d.consigli.length) {
+    box.appendChild(el("h4", "", "Consigli"));
+    const ul = el("ul", "plain");
+    d.consigli.forEach((c) => ul.appendChild(el("li", "", String(c))));
+    box.appendChild(ul);
+  }
+  if (d.conservazione) {
+    box.appendChild(el("h4", "", "Se avanza"));
+    box.appendChild(el("p", "", String(d.conservazione)));
+  }
+}
+
+/* Timer di un passaggio: uno alla volta, con conto alla rovescia sul pulsante. */
+function stopTimer() {
+  if (!timer) return;
+  clearInterval(timer.id);
+  timer.button.classList.remove("running");
+  timer.button.textContent = timer.label;
+  timer = null;
+}
+
+function beep(ctx) {
+  try {
+    for (let k = 0; k < 3; k++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; g.gain.value = 0.2;
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + k * 0.4); o.stop(ctx.currentTime + k * 0.4 + 0.25);
+    }
+  } catch (e) {}
+}
+
+function toggleTimer(button, minutes, label) {
+  const wasThis = timer && timer.button === button;
+  stopTimer();
+  button.classList.remove("done");
+  if (wasThis) return;
+  let ctx = null;
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) ctx = new AC(); } catch (e) {}
+  const end = Date.now() + minutes * 60000;
+  const tick = () => {
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    if (left === 0) {
+      clearInterval(timer.id); timer = null;
+      button.classList.remove("running"); button.classList.add("done");
+      button.textContent = "Tempo scaduto · tocca per ripartire";
+      if (ctx) beep(ctx);
+      return;
+    }
+    const mm = String(Math.floor(left / 60)).padStart(2, "0"), ss = String(left % 60).padStart(2, "0");
+    button.textContent = mm + ":" + ss + " · tocca per fermare";
+  };
+  timer = { id: setInterval(tick, 500), button: button, label: label };
+  button.classList.add("running");
+  tick();
+}
+
+/* ---------- Avvio ---------- */
+function setBusy(b) {
+  state.busy = b;
+  ["btn-analyze", "btn-more", "btn-pm"].forEach((id) => { $(id).disabled = b; });
+  $("btn-recipes").disabled = b || !state.ingredients.length;
+  document.querySelectorAll(".btn-alt").forEach((x) => { x.disabled = b; });
+}
+
+function addFromForm(inputId) {
+  $(inputId).value.split(",").forEach((n) => addIngredient(n));
+  $(inputId).value = "";
+}
+
+$("btn-settings").addEventListener("click", () => toggleSettings());
+$("btn-save").addEventListener("click", () => saveSettings(false));
+$("btn-reload-models").addEventListener("click", () => saveSettings(true));
+$("tab-frigo").addEventListener("click", () => setTab("frigo"));
+$("tab-perme").addEventListener("click", () => setTab("perme"));
+$("in-camera").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
+$("in-library").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
+$("in-camera2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
+$("in-library2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
+$("btn-analyze").addEventListener("click", analyze);
+$("form-add").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add"); });
+$("form-add2").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add2"); });
+$("btn-clear").addEventListener("click", () => { state.ingredients = []; saveIngredients(); renderIngredients(); });
+$("btn-recipes").addEventListener("click", () => makeRecipes(false));
+$("btn-more").addEventListener("click", () => makeRecipes(true));
+$("btn-pm").addEventListener("click", perMeGenerate);
+$("pm-day").addEventListener("change", renderRule);
+$("pm-meal").addEventListener("change", renderRule);
+$("in-plan").addEventListener("change", (e) => store.set("plan", e.target.checked));
+$("btn-back").addEventListener("click", closeRecipe);
+
+GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("pm-day").appendChild(o); });
+$("pm-day").value = OGGI;
+$("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 15 ? "pranzo" : "cena"; })();
+$("in-plan").checked = store.get("plan", true);
+setTab(state.tab);
+renderModels();
+renderIngredients();
+renderDays();
+renderWeek();
+renderRule();
+if (!state.key && state.tab === "frigo") toggleSettings(true);
+</script>
+</body>
+</html>
