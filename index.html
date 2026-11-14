@@ -20,6 +20,7 @@
   - Il file contiene solo alimenti, quantità e ricette: nessun dato personale.
   - I testi inviati al modello sono nelle funzioni promptIngredienti(),
     promptRicette(), promptPerMe() e promptDettaglio().
+  - Il gioco «Dispensa» (svago mentre un timer è in corso) è nelle funzioni che iniziano con «g».
   - sw.js e manifest.webmanifest servono per usare l'app anche senza rete.
   - Nessun server: la pagina parla direttamente con la API di Google usando la
     chiave salvata solo sul tuo telefono.
@@ -273,6 +274,35 @@ body.has-timers .cook-nav { bottom: calc(env(safe-area-inset-bottom) + 96px); }
 .cook-nav button { min-height: 64px; font-size: 15px; background: var(--surface); }
 .cook-nav button.primary { background: var(--accent); }
 
+/* Svago: gioco «Dispensa» */
+main.in-game > *:not(#game) { display: none !important; }
+main.in-game > #game { display: flex !important; }
+#game { flex-direction: column; gap: 12px; }
+.game-top { display: flex; justify-content: space-between; gap: 10px; }
+.game-timer { font: italic 400 18px/1.2 var(--font-display); color: var(--accent); font-variant-numeric: tabular-nums lining-nums; min-height: 22px; }
+.game-main { display: flex; gap: 14px; align-items: flex-start; }
+.game-board { position: relative; flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; }
+#game-canvas { display: block; border: 1px solid var(--line); border-radius: 2px; touch-action: none; background: var(--surface); }
+.game-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+  padding: 18px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(2px);
+}
+.game-overlay[hidden] { display: none !important; }
+.game-overlay h3 { font: italic 500 28px/1.1 var(--font-display); }
+.game-overlay button { min-width: 180px; }
+.game-side { flex: 0 0 92px; display: flex; flex-direction: column; gap: 8px; }
+.game-name { font: italic 500 22px/1 var(--font-display); }
+.game-stat { display: flex; flex-direction: column; gap: 1px; }
+.game-stat span, .game-next-label { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.game-stat b { font: 500 21px/1.1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; }
+.game-next-name { font-size: 13px; color: var(--muted); }
+.game-pad { display: grid; grid-template-columns: 1fr 1.3fr 1fr 1.3fr; gap: 8px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.game-pad button { min-height: 60px; font-size: 15px; background: var(--surface); }
+.game-pad #g-left, .game-pad #g-right { font-size: 24px; letter-spacing: 0; }
+.game-help { font-size: 13.5px; }
+.timer-play { flex: none; min-height: 0; padding: 8px 14px; font-size: 12px; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+
 
 /* Schede in alto: Dal frigo / Per me */
 .tabs { display: flex; border-bottom: 1px solid var(--line); }
@@ -510,6 +540,38 @@ i.mg { background: var(--muted); }
       <button type="button" id="cook-prev">Indietro</button>
       <button type="button" class="primary" id="cook-next">Avanti</button>
     </div>
+  </section>
+
+  <!-- SVAGO: gioco «Dispensa», solo mentre un timer è in corso -->
+  <section id="game" hidden aria-label="Gioco Dispensa">
+    <div class="game-top">
+      <button type="button" class="small" id="game-close">Torna alla cucina</button>
+      <button type="button" class="small" id="game-pause">Pausa</button>
+    </div>
+    <p class="game-timer" id="game-timer"></p>
+    <div class="game-main">
+      <div class="game-board">
+        <canvas id="game-canvas" role="img" aria-label="Campo di gioco: la dispensa da riempire"></canvas>
+        <div class="game-overlay" id="game-overlay" hidden></div>
+      </div>
+      <aside class="game-side">
+        <h2 class="game-name">Dispensa</h2>
+        <p class="game-stat"><span>Ripiani</span><b id="game-lines">0</b></p>
+        <p class="game-stat"><span>Punti</span><b id="game-score">0</b></p>
+        <p class="game-stat"><span>Livello</span><b id="game-level">1</b></p>
+        <p class="game-stat"><span>Record</span><b id="game-best">0</b></p>
+        <p class="game-next-label">Prossimo</p>
+        <canvas id="game-next" width="64" height="64" role="img" aria-label="Prossimo alimento"></canvas>
+        <p class="game-next-name" id="game-next-name"></p>
+      </aside>
+    </div>
+    <div class="game-pad">
+      <button type="button" id="g-left" aria-label="Sposta a sinistra">←</button>
+      <button type="button" id="g-rot" aria-label="Ruota">Ruota</button>
+      <button type="button" id="g-right" aria-label="Sposta a destra">→</button>
+      <button type="button" id="g-down" aria-label="Giù (tieni premuto per scendere veloce)">Giù</button>
+    </div>
+    <p class="muted game-help">Riempi un ripiano da parete a parete per servirlo. Sul campo: tocca per ruotare, scorri a destra o sinistra per spostare, scorri in giù per far cadere.</p>
   </section>
 
   <!-- PAGINA DELLA RICETTA (si apre toccando una ricetta) -->
@@ -1596,7 +1658,7 @@ function tickTimers() {
   for (const k in timers) {
     const tm = timers[k];
     if (tm.done) continue;
-    if (Date.now() >= tm.end) { tm.done = true; beep(); speak("Tempo scaduto: " + tm.label); }
+    if (Date.now() >= tm.end) { tm.done = true; beep(); speak("Tempo scaduto: " + tm.label); gTimerDone(tm.label); }
     else running++;
   }
   if (!running && tickId) { clearInterval(tickId); tickId = null; }
@@ -1624,6 +1686,16 @@ function renderTimers() {
     chip.addEventListener("click", () => { delete timers[k]; renderTimers(); });
     bar.appendChild(chip);
   });
+  const run = runningTimers();
+  if (run.length && !game.open) {
+    const play = el("button", "timer-play", "Gioca mentre aspetti");
+    play.type = "button";
+    play.addEventListener("click", openGame);
+    bar.appendChild(play);
+  }
+  if (game.open) $("game-timer").textContent = run.length
+    ? run[0].label + " · ancora " + fmtLeft(run[0].end - Date.now())
+    : (Object.values(timers).some((x) => x.done) ? "Timer finito: " + Object.values(timers).find((x) => x.done).label : "Nessun timer in corso");
 }
 
 function timerButton(key, label, minutes) {
@@ -1909,6 +1981,242 @@ async function copySpesa() {
   catch (e) { setStatus($("spesa-status"), "Non riesco a copiare da qui: usa «Condividi la lista».", "error"); }
   setTimeout(() => setStatus($("spesa-status"), ""), 4000);
 }
+
+/* ---------- Svago: «Dispensa», gioco a blocchi con alimenti ----------
+   Si apre solo mentre un timer è in corso. Campo 9 × 16; un ripiano pieno da parete a parete
+   viene «servito» e sparisce. Il gioco si mette in pausa da solo quando un timer finisce. */
+const GCOLS = 9, GROWS = 16;
+const GPIECES = [
+  { n: "Baguette",  size: 4, cells: [[0, 1], [1, 1], [2, 1], [3, 1]] },
+  { n: "Formaggio", size: 2, cells: [[0, 0], [1, 0], [0, 1], [1, 1]] },
+  { n: "Pomodoro",  size: 3, cells: [[1, 0], [0, 1], [1, 1], [2, 1]] },
+  { n: "Zucchina",  size: 3, cells: [[1, 0], [2, 0], [0, 1], [1, 1]] },
+  { n: "Melanzana", size: 3, cells: [[0, 0], [1, 0], [1, 1], [2, 1]] },
+  { n: "Carota",    size: 3, cells: [[2, 0], [0, 1], [1, 1], [2, 1]] },
+  { n: "Uovo",      size: 3, cells: [[0, 0], [0, 1], [1, 1], [2, 1]] }
+];
+const game = { open: false, board: [], piece: null, next: null, bag: [], score: 0, lines: 0, level: 1,
+               paused: false, over: false, acc: 0, last: 0, raf: 0, cell: 24, soft: false, from: null };
+
+function gEmpty() { return Array.from({ length: GROWS }, () => Array(GCOLS).fill(null)); }
+function gTake() {
+  if (!game.bag.length) { game.bag = GPIECES.map((_, i) => i); for (let i = game.bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [game.bag[i], game.bag[j]] = [game.bag[j], game.bag[i]]; } }
+  const k = game.bag.pop(), p = GPIECES[k];
+  return { k: k, size: p.size, cells: p.cells.map((c) => c.slice()), x: Math.floor((GCOLS - p.size) / 2), y: -1 };
+}
+function gFits(p, dx, dy, cells) {
+  return (cells || p.cells).every(([cx, cy]) => {
+    const x = p.x + cx + dx, y = p.y + cy + dy;
+    return x >= 0 && x < GCOLS && y < GROWS && (y < 0 || !game.board[y][x]);
+  });
+}
+function gRotated(p) { return p.cells.map(([x, y]) => [p.size - 1 - y, x]); }
+function gMove(dx) { if (game.piece && gFits(game.piece, dx, 0)) { game.piece.x += dx; gDraw(); } }
+function gRotate() {
+  const p = game.piece; if (!p || p.size === 2) return;
+  const r = gRotated(p);
+  for (const kick of [0, -1, 1, -2, 2]) if (gFits(p, kick, 0, r)) { p.cells = r; p.x += kick; gDraw(); return; }
+}
+function gStep() {    // una riga in giù; se non può, il pezzo si ferma
+  const p = game.piece; if (!p) return false;
+  if (gFits(p, 0, 1)) { p.y++; return true; }
+  gLock(); return false;
+}
+function gDrop() { if (!game.piece || game.paused || game.over) return; let n = 0; while (gFits(game.piece, 0, 1)) { game.piece.y++; n++; } game.score += n * 2; gLock(); gDraw(); }
+function gLock() {
+  const p = game.piece;
+  for (const [cx, cy] of p.cells) {
+    const y = p.y + cy;
+    if (y < 0) { gOver(); return; }
+    game.board[y][p.x + cx] = p.k;
+  }
+  let full = 0;
+  for (let y = GROWS - 1; y >= 0; y--) {
+    if (game.board[y].every((c) => c !== null)) { game.board.splice(y, 1); game.board.unshift(Array(GCOLS).fill(null)); full++; y++; }
+  }
+  if (full) {
+    game.lines += full;
+    game.score += [0, 100, 250, 450, 700][full] * game.level;
+    game.level = 1 + Math.floor(game.lines / 8);
+  }
+  game.piece = game.next; game.next = gTake();
+  if (!gFits(game.piece, 0, 0)) gOver();
+  gStats();
+}
+function gOver() {
+  game.over = true; game.piece = null;
+  if (game.score > store.get("game_best", 0)) store.set("game_best", game.score);
+  gStats();
+  gOverlay("La dispensa è piena", "Hai servito " + game.lines + (game.lines === 1 ? " ripiano" : " ripiani") + " e fatto " + game.score + " punti.", [["Nuova partita", gNew]]);
+}
+function gStats() {
+  $("game-lines").textContent = game.lines; $("game-score").textContent = game.score;
+  $("game-level").textContent = game.level; $("game-best").textContent = Math.max(store.get("game_best", 0), game.score);
+  $("game-next-name").textContent = game.next ? GPIECES[game.next.k].n : "";
+  gDrawNext();
+}
+function gSpeed() { return Math.max(110, 820 - (game.level - 1) * 70); }
+
+/* Disegno: ogni cella è un alimento. */
+function gFood(ctx, k, px, py, s) {
+  const r = s * 0.22, pad = Math.max(1, s * 0.06), x = px + pad, y = py + pad, w = s - pad * 2;
+  const round = (fill, stroke) => {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + w, r); ctx.arcTo(x + w, y + w, x, y + w, r);
+    ctx.arcTo(x, y + w, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = Math.max(1, s * 0.05); ctx.strokeStyle = stroke; ctx.stroke();
+  };
+  const dot = (cx, cy, rr, fill) => { ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); };
+  const line = (x1, y1, x2, y2, col, lw) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = "round"; ctx.stroke(); };
+  const c = x + w / 2, m = y + w / 2;
+  switch (k) {
+    case 0: round("#D9A35B", "#A9762F");                      // baguette: tagli sulla crosta
+      line(x + w * 0.2, y + w * 0.7, x + w * 0.45, y + w * 0.3, "#F3D8A2", s * 0.09);
+      line(x + w * 0.55, y + w * 0.7, x + w * 0.8, y + w * 0.3, "#F3D8A2", s * 0.09); break;
+    case 1: round("#F2C94C", "#C99A1E");                      // formaggio: buchi
+      dot(x + w * 0.3, y + w * 0.32, w * 0.1, "#D8AA2A"); dot(x + w * 0.68, y + w * 0.5, w * 0.13, "#D8AA2A"); dot(x + w * 0.36, y + w * 0.72, w * 0.07, "#D8AA2A"); break;
+    case 2: round("#F6EDE6", "#E2D6CC");                      // pomodoro su piattino
+      dot(c, m + w * 0.04, w * 0.36, "#C8382F"); dot(c - w * 0.12, m - w * 0.08, w * 0.08, "#E66A5F");
+      line(c - w * 0.12, y + w * 0.2, c + w * 0.12, y + w * 0.2, "#3E7D3A", s * 0.08); line(c, y + w * 0.12, c, y + w * 0.26, "#3E7D3A", s * 0.07); break;
+    case 3: round("#5B8C3A", "#3F6826");                      // zucchina: striature
+      line(x + w * 0.33, y + w * 0.18, x + w * 0.33, y + w * 0.82, "#8DB86A", s * 0.07);
+      line(x + w * 0.66, y + w * 0.18, x + w * 0.66, y + w * 0.82, "#8DB86A", s * 0.07); break;
+    case 4: round("#6B2F63", "#4C1F46");                      // melanzana: lucido e picciolo
+      dot(x + w * 0.35, y + w * 0.38, w * 0.1, "#9A5A90"); line(c - w * 0.2, y + w * 0.12, c + w * 0.2, y + w * 0.12, "#4E8A3E", s * 0.1); break;
+    case 5: round("#E8833A", "#B85E1C");                      // carota: anelli
+      line(x + w * 0.22, y + w * 0.35, x + w * 0.5, y + w * 0.35, "#C9682A", s * 0.06);
+      line(x + w * 0.5, y + w * 0.62, x + w * 0.78, y + w * 0.62, "#C9682A", s * 0.06); break;
+    default: round("#FBF7EE", "#DCCFBE");                     // uovo al tegamino
+      dot(c + w * 0.04, m + w * 0.02, w * 0.2, "#F2B233"); dot(c - w * 0.03, m - w * 0.05, w * 0.06, "#F9D57A");
+  }
+}
+function gCss(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#999"; }
+function gDraw() {
+  const cv = $("game-canvas"), ctx = cv.getContext && cv.getContext("2d");
+  if (!ctx) return;
+  const s = game.cell, dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = gCss("--surface"); ctx.fillRect(0, 0, GCOLS * s, GROWS * s);
+  ctx.strokeStyle = gCss("--line"); ctx.lineWidth = 1;          // i ripiani della dispensa
+  for (let y = 1; y < GROWS; y++) { ctx.beginPath(); ctx.moveTo(0, y * s + 0.5); ctx.lineTo(GCOLS * s, y * s + 0.5); ctx.stroke(); }
+  for (let y = 0; y < GROWS; y++) for (let x = 0; x < GCOLS; x++) if (game.board[y][x] !== null) gFood(ctx, game.board[y][x], x * s, y * s, s);
+  const p = game.piece;
+  if (p) for (const [cx, cy] of p.cells) if (p.y + cy >= 0) gFood(ctx, p.k, (p.x + cx) * s, (p.y + cy) * s, s);
+}
+function gDrawNext() {
+  const cv = $("game-next"), ctx = cv.getContext && cv.getContext("2d");
+  if (!ctx || !game.next) return;
+  const dpr = window.devicePixelRatio || 1, W = 64, s = 15;
+  cv.width = W * dpr; cv.height = W * dpr; cv.style.width = W + "px"; cv.style.height = W + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, W);
+  const xs = game.next.cells.map((c) => c[0]), ys = game.next.cells.map((c) => c[1]);
+  const ox = (W - (Math.max(...xs) - Math.min(...xs) + 1) * s) / 2 - Math.min(...xs) * s, oy = (W - (Math.max(...ys) - Math.min(...ys) + 1) * s) / 2 - Math.min(...ys) * s;
+  game.next.cells.forEach(([x, y]) => gFood(ctx, game.next.k, ox + x * s, oy + y * s, s));
+}
+function gSize() {
+  const cv = $("game-canvas"), wrap = cv.parentElement, dpr = window.devicePixelRatio || 1;
+  const maxW = Math.max(160, (wrap.clientWidth || 260)), maxH = Math.max(240, window.innerHeight - 330);
+  game.cell = Math.max(14, Math.floor(Math.min(maxW / GCOLS, maxH / GROWS)));
+  cv.width = GCOLS * game.cell * dpr; cv.height = GROWS * game.cell * dpr;
+  cv.style.width = GCOLS * game.cell + "px"; cv.style.height = GROWS * game.cell + "px";
+  gDraw();
+}
+function gLoop(now) {
+  if (!game.open) return;
+  if (!game.paused && !game.over) {
+    game.acc += now - (game.last || now);
+    const speed = game.soft ? 45 : gSpeed();
+    while (game.acc >= speed) { game.acc -= speed; if (!gStep()) break; if (game.soft) game.score += 1; }
+    gDraw(); gStats();
+  }
+  game.last = now;
+  game.raf = requestAnimationFrame(gLoop);
+}
+function gNew() {
+  Object.assign(game, { board: gEmpty(), bag: [], score: 0, lines: 0, level: 1, over: false, paused: false, acc: 0, soft: false });
+  game.piece = gTake(); game.next = gTake();
+  gOverlay(null); gStats(); gDraw();
+  $("game-pause").textContent = "Pausa";
+}
+function gOverlay(title, text, actions) {
+  const box = $("game-overlay");
+  box.textContent = "";
+  box.hidden = !title;
+  if (!title) return;
+  box.appendChild(el("h3", "", title));
+  if (text) box.appendChild(el("p", "", text));
+  (actions || []).forEach(([label, fn], i) => {
+    const b = el("button", i === 0 ? "primary" : "", label); b.type = "button";
+    b.addEventListener("click", fn); box.appendChild(b);
+  });
+}
+function gPause(on, why) {
+  if (game.over) return;
+  game.paused = on; game.soft = false;
+  $("game-pause").textContent = on ? "Riprendi" : "Pausa";
+  if (on) gOverlay(why || "In pausa", null, [["Riprendi", () => gPause(false)], ["Torna alla cucina", closeGame]]);
+  else { gOverlay(null); game.last = 0; game.acc = 0; }
+}
+function runningTimers() { return Object.keys(timers).filter((k) => !timers[k].done).map((k) => timers[k]).sort((a, b) => a.end - b.end); }
+function openGame() {
+  if (!runningTimers().length) return;
+  game.from = { y: window.scrollY || 0 };
+  game.open = true;
+  $("game").hidden = false;
+  $("app").classList.add("in-game");
+  window.scrollTo(0, 0);
+  keepAwake(true);
+  if (!game.piece || game.over) gNew(); else gPause(true, "Partita in pausa");
+  gSize(); renderTimers();
+  game.last = 0; cancelAnimationFrame(game.raf); game.raf = requestAnimationFrame(gLoop);
+}
+function closeGame() {
+  game.open = false; cancelAnimationFrame(game.raf);
+  if (!game.over && game.piece) { game.paused = true; $("game-pause").textContent = "Riprendi"; }
+  $("game").hidden = true;
+  $("app").classList.remove("in-game");
+  if (!state.current && !state.cook) keepAwake(false);
+  window.scrollTo(0, game.from ? game.from.y : 0);
+  renderTimers();
+}
+function gTimerDone(label) {
+  if (!game.open) return;
+  game.paused = true; game.soft = false; $("game-pause").textContent = "Riprendi";
+  gOverlay("Tempo scaduto", label + ": torna ai fornelli.", [["Torna alla cucina", closeGame], ["Continua a giocare", () => gPause(false)]]);
+}
+
+/* Comandi: pulsanti (tenendo premuto si ripete) e gesti sul campo. */
+function gHold(id, fn, repeat) {
+  const b = $(id); let t1 = null, t2 = null;
+  const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; if (id === "g-down") game.soft = false; };
+  b.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); if (game.paused || game.over) return;
+    fn(); if (repeat) t1 = setTimeout(() => { t2 = setInterval(fn, repeat); }, 220);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
+}
+(function gWire() {
+  gHold("g-left", () => gMove(-1), 90);
+  gHold("g-right", () => gMove(1), 90);
+  gHold("g-rot", () => gRotate(), 0);
+  gHold("g-down", () => { if (gStep()) { game.score += 1; game.acc = 0; } game.soft = true; gDraw(); gStats(); }, 0);
+  const cv = $("game-canvas"); let sx = 0, sy = 0, st = 0, moved = 0;
+  cv.addEventListener("pointerdown", (e) => { sx = e.clientX; sy = e.clientY; st = Date.now(); moved = 0; });
+  cv.addEventListener("pointermove", (e) => {
+    if (!st || game.paused || game.over) return;
+    const dx = e.clientX - sx;
+    while (Math.abs(dx - moved * game.cell) >= game.cell) { const d = dx > moved * game.cell ? 1 : -1; gMove(d); moved += d; }
+  });
+  cv.addEventListener("pointerup", (e) => {
+    if (!st || game.paused || game.over) { st = 0; return; }
+    const dx = e.clientX - sx, dy = e.clientY - sy, dt = Date.now() - st; st = 0;
+    if (dy > 60 && Math.abs(dy) > Math.abs(dx) * 1.5) gDrop();
+    else if (!moved && Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) gRotate();
+  });
+  $("game-close").addEventListener("click", closeGame);
+  $("game-pause").addEventListener("click", () => gPause(!game.paused));
+  window.addEventListener("resize", () => { if (game.open) gSize(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && game.open && !game.paused) gPause(true); });
+})();
 
 /* ---------- Offline ---------- */
 function renderOnline() { $("offline").hidden = navigator.onLine !== false; }
