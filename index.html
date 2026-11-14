@@ -235,7 +235,9 @@ footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
 .sp-base { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .sp-base summary { cursor: pointer; color: var(--muted); font-size: 15px; padding: 6px 0; }
 .sp-note { margin-top: 10px; }
-#spesa input:checked + span .sp-qty { text-decoration: line-through; }
+/* Spesa: la spunta vuol dire «mi serve», non «comprato» */
+#spesa .checklist input:checked + span { color: var(--ink); text-decoration: none; font-weight: 500; }
+#spesa .checklist input:checked + span .sp-qty { text-decoration: none; font-weight: 400; }
 
 /* Barra dei timer, sempre visibile in basso */
 #timerbar {
@@ -624,6 +626,7 @@ i.mg { background: var(--muted); }
       <button type="button" id="btn-spesa-copy">Copia la lista</button>
     </div>
     <div id="spesa-status" role="status" aria-live="polite"></div>
+    <p class="muted" id="spesa-hint">Spunta ciò che ti serve: «Condividi» e «Copia» esportano solo gli articoli spuntati.</p>
     <div id="spesa"></div>
     <form class="add" id="form-spesa">
       <input type="text" id="in-spesa" placeholder="Aggiungi un articolo" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un articolo alla lista">
@@ -2545,7 +2548,7 @@ function renderSpesaDays() {
 function renderSpesa() {
   renderSpesaDays();
   const { items, days, vaghe } = buildSpesa();
-  const checked = store.get("spesa_checked", {});
+  const checked = store.get("spesa_sel", {});
   const useCasa = $("in-spesa-casa").checked && state.ingredients.length > 0;
   $("spesa-casa-label").textContent = state.ingredients.length
     ? "Metti a parte ciò che ho già in casa (" + state.ingredients.length + " alimenti dall'elenco del frigo)"
@@ -2563,14 +2566,19 @@ function renderSpesa() {
     const li = el("li"), lab = el("label"), cb = el("input"), txt = el("span");
     const id = "sp-" + it.nome.replace(/[^a-z0-9]+/gi, "-");
     cb.type = "checkbox"; cb.id = id; lab.htmlFor = id; cb.checked = !!checked[it.nome];
-    cb.addEventListener("change", () => { const c = store.get("spesa_checked", {}); if (cb.checked) c[it.nome] = 1; else delete c[it.nome]; store.set("spesa_checked", c); });
+    cb.addEventListener("change", () => { const c = store.get("spesa_sel", {}); if (cb.checked) c[it.nome] = 1; else delete c[it.nome]; store.set("spesa_sel", c); spesaConta(); });
     txt.appendChild(document.createTextNode(it.nome.charAt(0).toUpperCase() + it.nome.slice(1)));
     const q = qtyLabel(it);
     if (q) txt.appendChild(el("span", "sp-qty", " · " + q));
     lab.appendChild(cb); lab.appendChild(txt);
     if (it.extra) {
       const x = el("button", "sp-del", "×"); x.type = "button"; x.setAttribute("aria-label", "Togli " + it.nome);
-      x.addEventListener("click", (e) => { e.preventDefault(); store.set("spesa_extra", store.get("spesa_extra", []).filter((v) => v !== it.nome)); renderSpesa(); });
+      x.addEventListener("click", (e) => {
+        e.preventDefault();
+        store.set("spesa_extra", store.get("spesa_extra", []).filter((v) => v !== it.nome));
+        const c = store.get("spesa_sel", {}); delete c[it.nome]; store.set("spesa_sel", c);
+        renderSpesa();
+      });
       lab.appendChild(x);
     }
     li.appendChild(lab);
@@ -2595,24 +2603,46 @@ function renderSpesa() {
   if (days.includes("sab")) notes.push("La cena libera del sabato non è inclusa.");
   if (vaghe) notes.push("Per alcune alternative le dosi compaiono solo dopo averle aperte una volta.");
   if (notes.length) box.appendChild(el("p", "muted sp-note", notes.join(" ")));
+  spesaConta();
+}
+
+/* Gli articoli spuntati: sono gli unici che si esportano. */
+function spesaScelti() {
+  const { items, days } = buildSpesa();
+  const sel = store.get("spesa_sel", {});
+  return { days: days, list: items.filter((it) => sel[it.nome]) };
+}
+function spesaConta() {
+  const n = spesaScelti().list.length;
+  $("btn-spesa-share").textContent = n ? "Condividi la lista (" + n + ")" : "Condividi la lista";
+  $("btn-spesa-copy").textContent = n ? "Copia la lista (" + n + ")" : "Copia la lista";
 }
 
 function spesaText() {
-  const { items, days } = buildSpesa();
-  const checked = store.get("spesa_checked", {});
-  const useCasa = $("in-spesa-casa").checked && state.ingredients.length > 0;
+  const { days, list } = spesaScelti();
   const lines = ["Spesa · " + days.map((d) => GIORNI.find((g) => g[0] === d)[1].slice(0, 3)).join(", ")];
   REPARTI.forEach((rep) => {
-    const list = items.filter((it) => it.rep === rep && !checked[it.nome] && !(!it.extra && DISPENSA_BASE.test(it.nome)) && !(useCasa && !it.extra && giaInCasa(it.nome)))
-      .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
-    if (!list.length) return;
+    const part = list.filter((it) => it.rep === rep).sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    if (!part.length) return;
     lines.push("", rep.toUpperCase());
-    list.forEach((it) => { const q = qtyLabel(it); lines.push("- " + it.nome + (q && q !== "q.b." ? " (" + q + ")" : "")); });
+    part.forEach((it) => { const q = qtyLabel(it); lines.push("- " + it.nome + (q && q !== "q.b." ? " (" + q + ")" : "")); });
   });
+  const altri = list.filter((it) => !REPARTI.includes(it.rep));
+  if (altri.length) {
+    lines.push("", "ALTRO");
+    altri.forEach((it) => { const q = qtyLabel(it); lines.push("- " + it.nome + (q && q !== "q.b." ? " (" + q + ")" : "")); });
+  }
   return lines.join("\n");
+}
+function spesaVuota() {
+  if (spesaScelti().list.length) return false;
+  setStatus($("spesa-status"), "Spunta prima gli articoli che ti servono.", "error");
+  setTimeout(() => setStatus($("spesa-status"), ""), 4000);
+  return true;
 }
 
 async function shareSpesa() {
+  if (spesaVuota()) return;
   const text = spesaText();
   try {
     if (navigator.share) { await navigator.share({ title: "Lista della spesa", text: text }); return; }
@@ -2620,6 +2650,7 @@ async function shareSpesa() {
   copySpesa();
 }
 async function copySpesa() {
+  if (spesaVuota()) return;
   try { await navigator.clipboard.writeText(spesaText()); setStatus($("spesa-status"), "Lista copiata: incollala in Note, Promemoria o in un messaggio."); }
   catch (e) { setStatus($("spesa-status"), "Non riesco a copiare da qui: usa «Condividi la lista».", "error"); }
   setTimeout(() => setStatus($("spesa-status"), ""), 4000);
@@ -2931,11 +2962,14 @@ $("cook-voice").addEventListener("click", () => {
 $("btn-spesa-share").addEventListener("click", shareSpesa);
 $("btn-spesa-copy").addEventListener("click", copySpesa);
 $("in-spesa-casa").addEventListener("change", renderSpesa);
-$("btn-spesa-reset").addEventListener("click", () => { store.set("spesa_checked", {}); renderSpesa(); });
+$("btn-spesa-reset").addEventListener("click", () => { store.set("spesa_sel", {}); renderSpesa(); });
 $("form-spesa").addEventListener("submit", (e) => {
   e.preventDefault();
   const v = $("in-spesa").value.trim().toLowerCase().slice(0, 60);
-  if (v) { const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x); }
+  if (v) {
+    const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x);
+    const c = store.get("spesa_sel", {}); c[v] = 1; store.set("spesa_sel", c);   // scritto a mano: serve di sicuro
+  }
   $("in-spesa").value = ""; renderSpesa();
 });
 
