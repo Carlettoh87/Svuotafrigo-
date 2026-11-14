@@ -476,6 +476,7 @@ i.mg { background: var(--muted); }
       <input type="text" id="in-add" placeholder="Aggiungi un ingrediente" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un ingrediente">
       <button type="submit">Aggiungi</button>
     </form>
+    <div id="add-status" role="status" aria-live="polite"></div>
     <label class="check" for="in-pantry">
       <input type="checkbox" id="in-pantry" checked>
       Ho anche la dispensa di base (olio, sale, zucchero, erbe, pasta, riso, farina)
@@ -593,6 +594,7 @@ i.mg { background: var(--muted); }
       <input type="text" id="in-add2" placeholder="Aggiungi un alimento a mano" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un alimento a mano">
       <button type="submit">Aggiungi</button>
     </form>
+    <div id="add-status2" role="status" aria-live="polite"></div>
     <div class="row">
       <label for="pm-day">Giorno
         <select id="pm-day"></select>
@@ -646,6 +648,7 @@ i.mg { background: var(--muted); }
       <input type="text" id="in-spesa" placeholder="Aggiungi un articolo" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un articolo alla lista">
       <button type="submit">Aggiungi</button>
     </form>
+    <div id="spesa-add-status" role="status" aria-live="polite"></div>
     <button type="button" class="small" id="btn-spesa-reset">Togli tutte le spunte</button>
   </section>
 
@@ -820,7 +823,7 @@ const FALLBACK_MODELS = [
   { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite (più veloce)" }
 ];
 const FAST_MODEL = "gemini-flash-lite-latest";
-const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000, adatta: 90000 };   // millisecondi di attesa massima
+const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000, adatta: 90000, verifica: 25000 };   // millisecondi di attesa massima
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -972,7 +975,7 @@ async function generate(model, parts, temperature, think, ms, extra) {
 /* Quale modello usare: per il testo quello veloce (se attivo e disponibile), per le foto quello scelto. */
 function modelFor(kind) {
   const chosen = state.model || DEFAULT_MODEL;
-  const textOnly = kind === "ricette" || kind === "perme" || kind === "dettaglio" || kind === "adatta";
+  const textOnly = kind === "ricette" || kind === "perme" || kind === "dettaglio" || kind === "adatta" || kind === "verifica";
   if (textOnly && store.get("fast", true) && !store.get("fastBad", false) && !/gemma/.test(chosen)) return FAST_MODEL;
   return chosen;
 }
@@ -980,7 +983,7 @@ function modelFor(kind) {
 /* Il terzo parametro (kind) dice che tipo di richiesta è: foto, ricette, dettaglio o prova. */
 async function askModel(parts, temperature, kind, extra) {
   const chosen = state.model || DEFAULT_MODEL, model = modelFor(kind);
-  const ms = kind === "test" ? TEMPI.prova : kind === "adatta" ? TEMPI.adatta : TEMPI.risposta;
+  const ms = kind === "test" ? TEMPI.prova : kind === "adatta" ? TEMPI.adatta : kind === "verifica" ? TEMPI.verifica : TEMPI.risposta;
   const ladder = thinkingFor(model, kind);
   for (let i = 0; i < ladder.length; i++) {
     try { return await generate(model, parts, temperature, ladder[i], ms, extra); }
@@ -1221,7 +1224,7 @@ async function recognize() {
   const out = parseJson(await askModel(parts, 0.2, "ingredienti"));
   const found = Array.isArray(out) ? out : (out.ingredienti || []);
   let added = 0;
-  for (const name of found) if (addIngredient(name, true)) added++;
+  for (const name of found) if (!utensile(name) && addIngredient(name, true)) added++;
   state.photosAnalyzed = true;
   saveIngredients(); renderIngredients();
   return added;
@@ -1387,7 +1390,7 @@ function promptRicette(avoid, strict, ign) {
   p += "Proponi 4 ricette per " + c.people + (c.people === 1 ? " persona" : " persone") + ". ";
   p += REALI;
   if (time) p += "Tempo totale massimo: " + time + " minuti. ";
-  if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
+  if (c.notes) p += "Preferenze scritte dall'utente: «" + c.notes + "». Rispettale se riguardano cibo, cucina o dieta; se non c'entrano o non hanno senso, ignorale e metti \"preferenze_ignorate\": true. ";
   if (avoid && avoid.length) p += "Non riproporre queste ricette: " + avoid.join("; ") + ". ";
   p += COERENZA + (strict ? "ATTENZIONE: alcune proposte precedenti non usavano gli ingredienti disponibili o non erano piatti veri. Ogni ricetta deve usarne almeno due tra i più caratterizzanti, quando ce ne sono abbastanza. " : "");
   if (ign && ign.length) p += "Queste voci NON sono alimenti e non vanno usate: " + ign.join(", ") + ". ";
@@ -1471,10 +1474,11 @@ async function makeRecipes(more) {
     saveRecipes();
     renderRecipes();
     const nomi = state.ingredients.filter(ignorata);
-    setStatus($("recipes-status"), nomi.length
+    const prefNo = out1 && out1.preferenze_ignorate === true && contesto().notes;
+    setStatus($("recipes-status"), (prefNo ? "Le preferenze «" + contesto().notes + "» non riguardano la cucina: le ho ignorate. " : "") + (nomi.length
       ? (nomi.length === 1 ? "«" + nomi[0] + "» non è un alimento: non l'ho usato. Toglilo dall'elenco con la ×."
         : nomi.map((x) => "«" + x + "»").join(", ") + " non sono alimenti: non li ho usati. Toglili dall'elenco con la ×.")
-      : "");
+      : ""));
   } catch (e) {
     setStatus($("recipes-status"), e.message, "error");
   }
@@ -2647,11 +2651,18 @@ function spesaFiltra() {
     $("spesa-none-add").textContent = "Aggiungi «" + raw + "»";
   }
 }
-function spesaAggiungi(v) {
-  v = String(v || "").trim().toLowerCase().slice(0, 60);
-  if (!v) return;
-  const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x);
-  const c = store.get("spesa_sel", {}); c[v] = 1; store.set("spesa_sel", c);   // scritto a mano: serve di sicuro
+async function spesaAggiungi(raw, st) {
+  if (!String(raw || "").trim()) return false;
+  setStatus(st, "Controllo…", "loading");
+  const res = await verificaVoci(String(raw).split(","), "spesa");
+  const x = store.get("spesa_extra", []), c = store.get("spesa_sel", {});
+  let n = 0;
+  res.ok.forEach((v) => { if (!x.includes(v)) { x.push(v); n++; } c[v] = 1; });   // scritto a mano: serve di sicuro
+  store.set("spesa_extra", x); store.set("spesa_sel", c);
+  const msg = esitoVoci(res, n);
+  setStatus(st, msg, res.no.length ? "error" : "");
+  if (msg && !res.no.length) setTimeout(() => setStatus(st, ""), 5000);
+  return res.ok.length > 0;
 }
 
 /* Gli articoli spuntati: sono gli unici che si esportano. */
@@ -2956,9 +2967,131 @@ function setBusy(b) {
   document.querySelectorAll(".btn-alt").forEach((x) => { x.disabled = b; });
 }
 
-function addFromForm(inputId) {
-  $(inputId).value.split(",").forEach((n) => addIngredient(n));
-  $(inputId).value = "";
+/* ---------- Controllo delle voci scritte a mano ----------
+   Si accettano solo alimenti (o, nella spesa, articoli da supermercato). Quelli già noti passano subito,
+   anche senza rete; gli altri li controlla il modello, che corregge anche l'ortografia. */
+const ALIMENTI_COMUNI = ("acqua,acqua frizzante,aceto,aceto balsamico,acciughe,agnello,aglio,albicocche,alici,amarene,ananas,anguria,arance,arachidi,asparagi,avena,avocado," +
+  "banane,basilico,bietole,biscotti,bresaola,brodo,broccoli,burro,burrata,caffè,cacao,cachi,calamari,cannella,capperi,carciofi,carne macinata,carote,castagne,cavolfiore,cavolo,cavolo nero," +
+  "ceci,cetrioli,cicoria,ciliegie,cipolle,cipollotti,clementine,cocco,cotechino,cous cous,cozze,crackers,crescenza,datteri,dado,erba cipollina,fagioli,fagiolini,farina,farina integrale," +
+  "farro,fave,fesa di tacchino,feta,fichi,finocchi,fiocchi d'avena,fiocchi di latte,formaggio,fragole,frutti di bosco,funghi,gamberi,gelato,gnocchi,gorgonzola,grana padano,grissini," +
+  "guanciale,insalata,kiwi,lamponi,latte,lattuga,lenticchie,lievito,lievito di birra,lievito per dolci,limoni,lime,maiale,mais,mandarini,mandorle,manzo,marmellata,mascarpone," +
+  "mele,melanzane,melagrana,meloni,menta,merluzzo,miele,mirtilli,more,mortadella,mozzarella,nespole,nocciole,noci,noce moscata,olive,olio,olio extravergine d'oliva,olio di semi,orata," +
+  "origano,orzo,pancetta,pane,pane integrale,pangrattato,panna,parmigiano,pasta,pasta sfoglia,pasta brisée,pasta frolla,patate,pecorino,peperoncino,peperoni,pepe,pere,pesche," +
+  "pesce spada,petto di pollo,piselli,pistacchi,polenta,pollo,polpo,pomodori,pomodorini,pompelmo,porri,prezzemolo,prosciutto,prosciutto cotto,prosciutto crudo,provola,prugne," +
+  "quinoa,radicchio,rape,ravanelli,ricotta,riso,riso basmati,robiola,rosmarino,rucola,salame,salmone,salsiccia,sale,salvia,sarde,scalogno,sedano,semi di chia,semi di girasole," +
+  "seppie,sgombro,soia,spaghetti,speck,spezie,spinaci,stracchino,succo di frutta,susine,tacchino,taleggio,tè,timo,tofu,tonno,uova,uva,uvetta,vino,vitello,vongole,wurstel," +
+  "yogurt,yogurt greco,zafferano,zenzero,zucca,zucchero,zucchero di canna,zucchine,cipolla,carota,mela,pera,banana,arancia,limone,patata,pomodoro,zucchina,melanzana,peperone,uovo").split(",");
+/* Articoli da supermercato che non si mangiano: validi solo nella lista della spesa. */
+const ARTICOLI_CASA = ("carta forno,carta stagnola,carta alluminio,pellicola,pellicola trasparente,sacchetti,sacchetti gelo,sacchi spazzatura,carta igienica,carta da cucina," +
+  "tovaglioli,fazzoletti,detersivo,detersivo piatti,detersivo per piatti,detersivo lavatrice,ammorbidente,candeggina,sgrassatore,anticalcare,brillantante,pastiglie lavastoviglie," +
+  "spugne,sapone,sapone mani,bagnoschiuma,shampoo,balsamo,dentifricio,spazzolino,deodorante,cotton fioc,assorbenti,pannolini,piatti di carta,bicchieri di plastica,stuzzicadenti," +
+  "pile,lampadine,fiammiferi,accendino,cibo per gatti,cibo per cani,crocchette,lettiera").split(",");
+let VOCI_NOTE = null, VOCI_CASA = null;
+function vociNote() {
+  if (VOCI_NOTE) return VOCI_NOTE;
+  const s = new Set(ALIMENTI_COMUNI.map(normAlimento));
+  (function walk(o) {   // tutti gli ingredienti del menu della settimana
+    if (Array.isArray(o)) o.forEach(walk);
+    else if (o && typeof o === "object") for (const k in o) { if (k === "nome" && typeof o[k] === "string") s.add(normAlimento(o[k])); else walk(o[k]); }
+  })(SETTIMANA);
+  store.get("voci_ok", []).forEach((x) => s.add(normAlimento(x)));
+  return (VOCI_NOTE = s);
+}
+function voceNota(v, tipo) {
+  const n = normAlimento(v), s = vociNote();
+  if (s.has(n)) return true;
+  if (tipo === "spesa") {
+    if (!VOCI_CASA) VOCI_CASA = new Set(ARTICOLI_CASA.map(normAlimento));
+    if (VOCI_CASA.has(n)) return true;
+  }
+  const ws = n.split(" ");
+  const parola = (a, b) => {   // stessa parola, o singolare/plurale (uovo/uova, carota/carote)
+    if (a === b) return true;
+    if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 1) return false;
+    let k = 0; while (k < a.length && k < b.length && a[k] === b[k]) k++;
+    return k >= Math.max(3, Math.min(a.length, b.length) - 1);   // cambia solo la desinenza: cane ≠ carne
+  };
+  for (const x of s) {   // ogni parola deve corrispondere: «cane nero» non è «cavolo nero»
+    const xs = x.split(" ");
+    if (xs.length === ws.length && xs.every((p, i) => parola(p, ws[i]))) return true;
+  }
+  return false;
+}
+function ricordaVoce(v) {
+  const n = normAlimento(v), ok = store.get("voci_ok", []);
+  if (!ok.includes(n)) { ok.push(n); store.set("voci_ok", ok.slice(-400)); }
+  vociNote().add(n);
+}
+
+/* tipo: "alimento" (frigo, in casa) oppure "spesa". Restituisce { ok: [nomi da aggiungere], no: [«x»: motivo], corrette: [[da, a]] }. */
+async function verificaVoci(list, tipo) {
+  const res = { ok: [], no: [], corrette: [] };
+  const dubbie = [];
+  list.map((v) => String(v || "").trim().toLowerCase().replace(/\s+/g, " ").slice(0, 60)).filter(Boolean).forEach((v) => {
+    if (!/[a-zà-ü]/i.test(v)) res.no.push("«" + v + "» non è una parola");
+    else if (tipo === "alimento" && utensile(v)) res.no.push("«" + v + "» è un utensile, non un alimento");
+    else if (voceNota(v, tipo)) res.ok.push(v);
+    else dubbie.push(v);
+  });
+  if (!dubbie.length) return res;
+  if (!state.key || !navigator.onLine) {
+    dubbie.forEach((v) => res.no.push("«" + v + "» non posso controllarlo " + (state.key ? "senza rete" : "senza la chiave di Google")));
+    return res;
+  }
+  const cosa = tipo === "spesa"
+    ? "una lista della spesa. È valido un alimento, una bevanda o un articolo che si compra al supermercato (per esempio carta forno, detersivo, sacchetti). "
+    : "l'elenco degli alimenti che ho in casa. È valido solo un alimento o una bevanda (ingrediente o prodotto alimentare, anche confezionato o di marca). Pentole, utensili e oggetti non sono validi. ";
+  const p = "Controlla queste voci scritte a mano per " + cosa +
+    "Non sono valide: parole senza senso, animali vivi, persone, luoghi e oggetti che non c'entrano. " +
+    "Per ogni voce valida scrivi in \"nome\" la forma corretta in italiano, in minuscolo, correggendo eventuali errori di ortografia; per quelle non valide spiega il motivo in poche parole. " +
+    "Voci: " + dubbie.map((v) => "«" + v + "»").join(", ") + ". " +
+    'Rispondi SOLO con JSON, senza altro testo: {"voci":[{"scritto":"...","valida":true,"nome":"...","motivo":""}]}';
+  let out;
+  try { out = parseJson(await askModel([{ text: p }], 0, "verifica")); }
+  catch (e) {
+    dubbie.forEach((v) => res.no.push("«" + v + "» non sono riuscito a controllarlo: riprova"));
+    return res;
+  }
+  const voci = Array.isArray(out && out.voci) ? out.voci : [];
+  dubbie.forEach((v) => {
+    const r = voci.find((x) => x && normAlimento(x.scritto) === normAlimento(v)) || {};
+    const nome = String(r.nome || "").trim().toLowerCase().slice(0, 60);
+    if (r.valida === true && nome && !(tipo === "alimento" && utensile(nome))) {
+      if (normAlimento(nome) !== normAlimento(v)) res.corrette.push([v, nome]);
+      ricordaVoce(nome);
+      res.ok.push(nome);
+    } else {
+      const why = String(r.motivo || "").trim().replace(/\.$/, "");
+      res.no.push("«" + v + "» " + (why ? "non va bene: " + why.charAt(0).toLowerCase() + why.slice(1) : (tipo === "spesa" ? "non è un articolo da spesa" : "non è un alimento")));
+    }
+  });
+  return res;
+}
+function esitoVoci(res, aggiunti) {
+  const parts = [];
+  if (res.corrette.length) parts.push("Ho corretto " + res.corrette.map((c) => "«" + c[0] + "» in «" + c[1] + "»").join(", ") + ".");
+  if (res.no.length) parts.push("Non aggiunto: " + res.no.join("; ") + ".");
+  if (!res.no.length && !res.corrette.length && aggiunti === 0 && res.ok.length) parts.push("È già nell'elenco.");
+  return parts.join(" ");
+}
+
+async function addFromForm(inputId, statusId) {
+  const inp = $(inputId), st = $(statusId), raw = inp.value;
+  if (!raw.trim() || inp.disabled) return;
+  inp.disabled = true;
+  setStatus(st, "Controllo…", "loading");
+  try {
+    const res = await verificaVoci(raw.split(","), "alimento");
+    let n = 0;
+    res.ok.forEach((v) => { if (addIngredient(v, true)) n++; });
+    saveIngredients(); renderIngredients();
+    const msg = esitoVoci(res, n);
+    setStatus(st, msg, res.no.length ? "error" : "");
+    inp.value = "";   // il messaggio dice cosa non è entrato
+    if (msg && !res.no.length) setTimeout(() => setStatus(st, ""), 5000);
+  } finally {
+    inp.disabled = false;
+  }
 }
 
 $("btn-settings").addEventListener("click", () => toggleSettings());
@@ -2975,8 +3108,8 @@ $("in-library").addEventListener("change", (e) => { addPhotos(e.target.files, $(
 $("in-camera2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
 $("in-library2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
 $("btn-analyze").addEventListener("click", analyze);
-$("form-add").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add"); });
-$("form-add2").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add2"); });
+$("form-add").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add", "add-status"); });
+$("form-add2").addEventListener("submit", (e) => { e.preventDefault(); addFromForm("in-add2", "add-status2"); });
 /* Ricomincia da capo: toglie alimenti, foto e ricette proposte (il menu della settimana resta). */
 function clearAll(statusId) {
   if (state.busy) return;
@@ -3012,15 +3145,23 @@ $("btn-spesa-copy").addEventListener("click", copySpesa);
 $("in-spesa-casa").addEventListener("change", renderSpesa);
 $("spesa-cerca").addEventListener("input", spesaFiltra);
 $("spesa-cerca").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
-$("spesa-none-add").addEventListener("click", () => {
-  spesaAggiungi($("spesa-cerca").value);
-  $("spesa-cerca").value = ""; renderSpesa();
+$("spesa-none-add").addEventListener("click", async () => {
+  const b = $("spesa-none-add");
+  if (b.disabled) return;
+  b.disabled = true;
+  try {
+    if (await spesaAggiungi($("spesa-cerca").value, $("spesa-status"))) $("spesa-cerca").value = "";
+    renderSpesa();
+  } finally { b.disabled = false; }
 });
 $("btn-spesa-reset").addEventListener("click", () => { store.set("spesa_sel", {}); renderSpesa(); });
 $("form-spesa").addEventListener("submit", (e) => {
   e.preventDefault();
-  spesaAggiungi($("in-spesa").value);
-  $("in-spesa").value = ""; renderSpesa();
+  const inp = $("in-spesa");
+  if (inp.disabled) return;
+  inp.disabled = true;
+  spesaAggiungi(inp.value, $("spesa-add-status")).then(() => { inp.value = ""; renderSpesa(); })
+    .finally(() => { inp.disabled = false; });
 });
 
 Object.keys(state.alt).forEach((k) => { if (state.alt[k]) delete state.alt[k].loading; });
