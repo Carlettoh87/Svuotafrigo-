@@ -235,6 +235,15 @@ footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
 .sp-base { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .sp-base summary { cursor: pointer; color: var(--muted); font-size: 15px; padding: 6px 0; }
 .sp-note { margin-top: 10px; }
+/* Spesa: ricerca sopra la lista, resta in vista scorrendo */
+.sp-cerca {
+  position: sticky; top: 0; z-index: 2; width: 100%; margin: 4px 0 6px; padding: 12px 14px;
+  font: inherit; font-size: 17px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px; -webkit-appearance: none; appearance: none;
+}
+.sp-cerca:focus { outline: none; border-color: var(--accent); }
+#spesa li[hidden], #spesa .sp-sec[hidden], #spesa .sp-base[hidden], #spesa-none[hidden] { display: none; }
+#spesa-none { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 6px 0 10px; }
 /* Spesa: la spunta vuol dire «mi serve», non «comprato» */
 #spesa .checklist input:checked + span { color: var(--ink); text-decoration: none; font-weight: 500; }
 #spesa .checklist input:checked + span .sp-qty { text-decoration: none; font-weight: 400; }
@@ -627,6 +636,11 @@ i.mg { background: var(--muted); }
     </div>
     <div id="spesa-status" role="status" aria-live="polite"></div>
     <p class="muted" id="spesa-hint">Spunta ciò che ti serve: «Condividi» e «Copia» esportano solo gli articoli spuntati.</p>
+    <input type="search" id="spesa-cerca" class="sp-cerca" placeholder="Cerca un articolo" autocomplete="off" enterkeyhint="search" aria-label="Cerca un articolo nella lista">
+    <div id="spesa-none" hidden>
+      <p class="muted" id="spesa-none-txt"></p>
+      <button type="button" class="small" id="spesa-none-add"></button>
+    </div>
     <div id="spesa"></div>
     <form class="add" id="form-spesa">
       <input type="text" id="in-spesa" placeholder="Aggiungi un articolo" autocomplete="off" enterkeyhint="done" aria-label="Aggiungi un articolo alla lista">
@@ -2564,6 +2578,7 @@ function renderSpesa() {
   });
   const row = (it) => {
     const li = el("li"), lab = el("label"), cb = el("input"), txt = el("span");
+    li.dataset.nome = normAlimento(it.nome);
     const id = "sp-" + it.nome.replace(/[^a-z0-9]+/gi, "-");
     cb.type = "checkbox"; cb.id = id; lab.htmlFor = id; cb.checked = !!checked[it.nome];
     cb.addEventListener("change", () => { const c = store.get("spesa_sel", {}); if (cb.checked) c[it.nome] = 1; else delete c[it.nome]; store.set("spesa_sel", c); spesaConta(); });
@@ -2587,9 +2602,11 @@ function renderSpesa() {
   const section = (title, list, note) => {
     if (!list.length) return;
     list.sort((a, b) => a.nome.localeCompare(b.nome, "it"));
-    box.appendChild(el("h4", "sp-rep", title));
-    if (note) box.appendChild(el("p", "muted", note));
-    const ul = el("ul", "checklist"); list.forEach((it) => ul.appendChild(row(it))); box.appendChild(ul);
+    const sec = el("div", "sp-sec");
+    sec.appendChild(el("h4", "sp-rep", title));
+    if (note) sec.appendChild(el("p", "muted", note));
+    const ul = el("ul", "checklist"); list.forEach((it) => ul.appendChild(row(it))); sec.appendChild(ul);
+    box.appendChild(sec);
   };
   REPARTI.forEach((rep) => section(rep, groups[rep] || []));
   section("Già in casa", casa, "Li hai fotografati: controlla solo che la quantità basti.");
@@ -2604,6 +2621,37 @@ function renderSpesa() {
   if (vaghe) notes.push("Per alcune alternative le dosi compaiono solo dopo averle aperte una volta.");
   if (notes.length) box.appendChild(el("p", "muted sp-note", notes.join(" ")));
   spesaConta();
+  spesaFiltra();
+}
+
+/* Ricerca: mostra solo gli articoli che contengono il testo scritto. */
+function spesaFiltra() {
+  const raw = $("spesa-cerca").value.trim(), q = normAlimento(raw);
+  const box = $("spesa");
+  let found = 0;
+  box.querySelectorAll("li").forEach((li) => {
+    const ok = !q || li.dataset.nome.includes(q);
+    li.hidden = !ok;
+    if (ok) found++;
+  });
+  box.querySelectorAll(".sp-sec, .sp-base").forEach((s) => {
+    const any = Array.from(s.querySelectorAll("li")).some((li) => !li.hidden);
+    s.hidden = !any;
+    if (s.tagName === "DETAILS" && q && any) s.open = true;
+  });
+  box.querySelectorAll(".sp-note").forEach((p) => { p.hidden = !!q; });
+  const none = !!q && !found;
+  $("spesa-none").hidden = !none;
+  if (none) {
+    $("spesa-none-txt").textContent = "«" + raw + "» non è nella lista.";
+    $("spesa-none-add").textContent = "Aggiungi «" + raw + "»";
+  }
+}
+function spesaAggiungi(v) {
+  v = String(v || "").trim().toLowerCase().slice(0, 60);
+  if (!v) return;
+  const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x);
+  const c = store.get("spesa_sel", {}); c[v] = 1; store.set("spesa_sel", c);   // scritto a mano: serve di sicuro
 }
 
 /* Gli articoli spuntati: sono gli unici che si esportano. */
@@ -2962,14 +3010,16 @@ $("cook-voice").addEventListener("click", () => {
 $("btn-spesa-share").addEventListener("click", shareSpesa);
 $("btn-spesa-copy").addEventListener("click", copySpesa);
 $("in-spesa-casa").addEventListener("change", renderSpesa);
+$("spesa-cerca").addEventListener("input", spesaFiltra);
+$("spesa-cerca").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+$("spesa-none-add").addEventListener("click", () => {
+  spesaAggiungi($("spesa-cerca").value);
+  $("spesa-cerca").value = ""; renderSpesa();
+});
 $("btn-spesa-reset").addEventListener("click", () => { store.set("spesa_sel", {}); renderSpesa(); });
 $("form-spesa").addEventListener("submit", (e) => {
   e.preventDefault();
-  const v = $("in-spesa").value.trim().toLowerCase().slice(0, 60);
-  if (v) {
-    const x = store.get("spesa_extra", []); if (!x.includes(v)) x.push(v); store.set("spesa_extra", x);
-    const c = store.get("spesa_sel", {}); c[v] = 1; store.set("spesa_sel", c);   // scritto a mano: serve di sicuro
-  }
+  spesaAggiungi($("in-spesa").value);
   $("in-spesa").value = ""; renderSpesa();
 });
 
