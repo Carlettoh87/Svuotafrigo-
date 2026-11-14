@@ -131,7 +131,7 @@ button:focus-visible, .btn:focus-within, input:focus-visible, select:focus-visib
 
 /* Campi */
 label { font-size: 11.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
-input[type=text], input[type=password], input[type=number], select {
+input[type=text], input[type=password], input[type=number], input[type=url], select {
   font: 400 17px/1.3 var(--font-body); letter-spacing: 0; text-transform: none; color: var(--ink);
   background: transparent; border: 0; border-bottom: 1px solid var(--ink); border-radius: 0;
   padding: 9px 2px; width: 100%; min-height: 44px; -webkit-appearance: none; appearance: none;
@@ -255,6 +255,28 @@ body.has-timers { padding-bottom: calc(env(safe-area-inset-bottom) + 110px); }
 .timer-chip.done .tc-time { color: var(--warn); }
 @keyframes pulse { from { opacity: 1; } to { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .timer-chip.done { animation: none; } }
+
+/* Ricette trovate online */
+textarea { font: 400 16px/1.45 var(--font-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 2px; padding: 10px; width: 100%; resize: vertical; text-transform: none; letter-spacing: 0; }
+textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.url-text-box summary { cursor: pointer; color: var(--accent); font-size: 15px; padding: 4px 0; }
+.url-text-box[open] summary { margin-bottom: 10px; }
+.analisi { display: flex; flex-direction: column; gap: 10px; }
+.analisi-sum { font: italic 400 17px/1.4 var(--font-display); }
+.analisi-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.analisi-list li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 15.5px; }
+.analisi-list li:last-child { border-bottom: 0; }
+.an-tag { font-size: 10.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; padding-top: 3px; color: var(--muted); }
+.an-sostituito .an-tag, .an-ridotto .an-tag { color: var(--accent); }
+.an-tolto .an-tag { color: var(--warn); }
+.an-ok .an-orig { color: var(--muted); }
+.an-why { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.analisi-det { border-top: 1px solid var(--line); padding-top: 8px; }
+.analisi-det summary { cursor: pointer; color: var(--accent); font-size: 15px; padding: 6px 0; }
+.mine-title { margin-top: 10px; }
+.mine-row { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
+.mine-row .recipe-card { border-top: 0; }
+.mine-row > button.small { align-self: flex-start; }
 
 /* Modalità cucina */
 main.in-cook > *:not(#cook) { display: none !important; }
@@ -506,6 +528,40 @@ i.mg { background: var(--muted); }
     <div class="recipes" id="pm-recipes"></div>
   </section>
 
+  <section class="card" id="sec-url" data-view="perme">
+    <h2>Da una ricetta trovata online</h2>
+    <p class="muted">Incolla il link di una ricetta: l'app la legge, controlla ogni ingrediente e la adatta alle quantità del pasto che scegli.</p>
+    <label for="url-link">Link della ricetta
+      <input type="url" id="url-link" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+    </label>
+    <details class="url-text-box" id="url-text-box">
+      <summary>Il link non funziona? Incolla il testo della ricetta</summary>
+      <label for="url-text">Testo della ricetta
+        <textarea id="url-text" rows="6" placeholder="Copia dalla pagina ingredienti e preparazione, e incollali qui"></textarea>
+      </label>
+    </details>
+    <div class="row">
+      <label for="url-day">Giorno
+        <select id="url-day"></select>
+      </label>
+      <label for="url-meal">Pasto
+        <select id="url-meal">
+          <option value="colazione">Colazione</option>
+          <option value="spuntino1">Spuntino del mattino</option>
+          <option value="pranzo" selected>Pranzo</option>
+          <option value="spuntino2">Spuntino del pomeriggio</option>
+          <option value="cena">Cena</option>
+        </select>
+      </label>
+    </div>
+    <p class="muted" id="url-rule"></p>
+    <button type="button" class="primary" id="btn-url">Adatta la ricetta</button>
+    <div id="url-status" role="status" aria-live="polite"></div>
+    <div id="url-result"></div>
+    <h3 class="mine-title" id="mine-title" hidden>Le mie ricette</h3>
+    <div class="recipes" id="mine"></div>
+  </section>
+
   <!-- ===== SCHEDA «SPESA» ===== -->
   <section class="card" id="sec-spesa" data-view="spesa">
     <h2>Lista della spesa</h2>
@@ -697,7 +753,7 @@ const FALLBACK_MODELS = [
   { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite (più veloce)" }
 ];
 const FAST_MODEL = "gemini-flash-lite-latest";
-const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000 };   // millisecondi di attesa massima
+const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000, adatta: 90000 };   // millisecondi di attesa massima
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -779,7 +835,7 @@ function netError(e, timedOut) {
 }
 
 /* Legge la risposta a pezzi (streaming): la connessione resta attiva mentre il modello scrive. */
-async function readSSE(res, onChunk) {
+async function readSSE(res, onChunk, meta) {
   let text = "", buf = "";
   const take = (line) => {
     line = line.trim();
@@ -790,6 +846,7 @@ async function readSSE(res, onChunk) {
     try { obj = JSON.parse(raw); } catch (e) { return; }
     if (obj.error) { const err = new Error(explainError(obj.error.code || 500, obj.error.message)); err.status = obj.error.code; err.raw = obj.error.message; throw err; }
     const c = obj.candidates && obj.candidates[0];
+    if (meta && c && c.urlContextMetadata) meta.url = c.urlContextMetadata;
     const parts = c && c.content && c.content.parts;
     if (parts) for (const p of parts) if (!p.thought && typeof p.text === "string") text += p.text;
   };
@@ -811,7 +868,7 @@ async function readSSE(res, onChunk) {
   return text;
 }
 
-async function generate(model, parts, temperature, think, ms) {
+async function generate(model, parts, temperature, think, ms, extra) {
   const cfg = {};
   if (!/^gemini-([3-9]|\d\d)/.test(model) && !/latest/.test(model)) cfg.temperature = temperature;  // per Gemini 3 Google consiglia la temperatura predefinita
   if (think) cfg.thinkingConfig = think;
@@ -824,7 +881,7 @@ async function generate(model, parts, temperature, think, ms) {
     res = await fetch(API + "/models/" + encodeURIComponent(model) + ":streamGenerateContent?alt=sse", {
       method: "POST", signal: ctrl.signal,
       headers: { "x-goog-api-key": state.key, "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: parts }], generationConfig: cfg })
+      body: JSON.stringify(Object.assign({ contents: [{ role: "user", parts: parts }], generationConfig: cfg }, extra && extra.tools ? { tools: extra.tools } : {}))
     });
   } catch (e) { clearTimeout(timer); throw netError(e, timedOut); }
   if (!res.ok) {
@@ -835,7 +892,7 @@ async function generate(model, parts, temperature, think, ms) {
     throw err;
   }
   let text;
-  try { text = await readSSE(res, arm); }
+  try { text = await readSSE(res, arm, extra && extra.meta); }
   catch (e) { throw e.status ? e : netError(e, timedOut); }
   finally { clearTimeout(timer); }
   if (!text) throw new Error("Il modello non ha risposto. Riprova o cambia modello nelle Impostazioni.");
@@ -845,25 +902,25 @@ async function generate(model, parts, temperature, think, ms) {
 /* Quale modello usare: per il testo quello veloce (se attivo e disponibile), per le foto quello scelto. */
 function modelFor(kind) {
   const chosen = state.model || DEFAULT_MODEL;
-  const textOnly = kind === "ricette" || kind === "perme" || kind === "dettaglio";
+  const textOnly = kind === "ricette" || kind === "perme" || kind === "dettaglio" || kind === "adatta";
   if (textOnly && store.get("fast", true) && !store.get("fastBad", false) && !/gemma/.test(chosen)) return FAST_MODEL;
   return chosen;
 }
 
 /* Il terzo parametro (kind) dice che tipo di richiesta è: foto, ricette, dettaglio o prova. */
-async function askModel(parts, temperature, kind) {
+async function askModel(parts, temperature, kind, extra) {
   const chosen = state.model || DEFAULT_MODEL, model = modelFor(kind);
-  const ms = kind === "test" ? TEMPI.prova : TEMPI.risposta;
+  const ms = kind === "test" ? TEMPI.prova : kind === "adatta" ? TEMPI.adatta : TEMPI.risposta;
   const ladder = thinkingFor(model, kind);
   for (let i = 0; i < ladder.length; i++) {
-    try { return await generate(model, parts, temperature, ladder[i], ms); }
+    try { return await generate(model, parts, temperature, ladder[i], ms, extra); }
     catch (e) {
-      const thinkingRefused = ladder[i] && e.status === 400 && !/api.?key/i.test(e.raw || "");
+      const thinkingRefused = ladder[i] && e.status === 400 && !/api.?key|url_context|tool/i.test(e.raw || "");
       if (thinkingRefused && i < ladder.length - 1) continue;
       // il modello veloce non è disponibile per questa chiave: si torna a quello scelto
-      if (model !== chosen && (e.status === 404 || e.status === 400 || e.status === 403)) {
+      if (model !== chosen && (e.status === 404 || e.status === 400 || e.status === 403) && !/url_context|tool/i.test(e.raw || "")) {
         store.set("fastBad", true);
-        return askModel(parts, temperature, kind);
+        return askModel(parts, temperature, kind, extra);
       }
       throw e;
     }
@@ -1466,6 +1523,137 @@ function renderPm() {
   state.pmRecipes.forEach((r) => box.appendChild(recipeCard(r)));
 }
 
+/* ---------- Ricette trovate online: lettura, analisi e adattamento ---------- */
+let mine = store.get("mine", []);   // le ricette adattate, salvate sul telefono
+
+function promptAdatta(d, m, url, text) {
+  let p = "Sei un cuoco di casa italiano. Cucini seguendo un menu settimanale con quantità prefissate. ";
+  p += url
+    ? "Leggi la ricetta che si trova a questo indirizzo: " + url + " . Se non riesci a leggere la pagina o non contiene una ricetta, rispondi solo con {\"errore\":\"non_leggibile\"}. "
+    : "Ecco il testo di una ricetta copiato da una pagina web:\n«" + text.slice(0, 12000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
+  p += "Adatta quella ricetta, restando il più possibile fedele al piatto originale. " + vincoli(d, m);
+  p += "Per ogni ingrediente della ricetta originale indica se va bene così, se va sostituito (con cosa e perché, usando solo alimenti previsti dalle quantità indicate o verdure, erbe e spezie ammesse), se va ridotto o tolto. " +
+    "Poi scrivi la ricetta adattata completa per 1 persona, con quantità esatte e passaggi chiari: ogni passaggio una sola azione, con strumento, fuoco o temperatura, minuti e segnale per capire che è pronto. " +
+    "Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"titolo":"nome del piatto adattato","titolo_originale":"...","descrizione":"una frase","tempo_minuti":30,"difficolta":"facile",' +
+    '"analisi":[{"originale":"200 g di panna","stato":"sostituito","con":"150 g di yogurt greco bianco 0%","motivo":"..."}],' +
+    '"ricetta":{"porzioni":1,"tempo_preparazione_minuti":10,"tempo_cottura_minuti":15,"ingredienti":[{"nome":"...","quantita":"...","note":"..."}],' +
+    '"attrezzatura":["..."],"passaggi":[{"titolo":"...","istruzioni":"...","minuti":5}],"consigli":["..."],"conservazione":"...",' + NUTR_FMT + '}} ' +
+    'dove "stato" è uno tra ok, sostituito, ridotto, tolto ("con" vuoto se ok o tolto), "minuti" è la durata da cronometrare (0 se nessuna) e "nutrizione" è la stima per la porzione adattata, calcolata dalle quantità a crudo.';
+  return p;
+}
+
+async function adattaRicetta() {
+  const st = $("url-status");
+  if (state.busy || !requireKey(st)) return;
+  let url = $("url-link").value.trim();
+  const text = $("url-text").value.trim();
+  if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
+  if (url && !/^https?:\/\/[^\s/]+\.[^\s]+/i.test(url)) { setStatus(st, "Il link non sembra valido: copialo di nuovo dalla barra dell'indirizzo.", "error"); return; }
+  if (!url && !text) { setStatus(st, "Incolla il link di una ricetta, oppure il suo testo.", "error"); return; }
+  const d = $("url-day").value, m = $("url-meal").value;
+  setBusy(true);
+  $("url-result").textContent = "";
+  setStatus(st, url && !text ? "Leggo la pagina e adatto la ricetta…" : "Adatto la ricetta…", "loading");
+  try {
+    let out, meta = {};
+    try {
+      const useUrl = url && !text;   // con il testo incollato non serve leggere la pagina
+      out = parseJson(await askModel([{ text: promptAdatta(d, m, useUrl ? url : "", useUrl ? "" : text) }], 0.5, "adatta",
+        useUrl ? { tools: [{ url_context: {} }], meta: meta } : null));
+      const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
+      const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
+      if (failed) out = { errore: "non_leggibile" };
+    } catch (e) {
+      if (e.status === 400 && /url_context|tool/i.test(e.raw || "")) out = { errore: "strumento" };
+      else throw e;
+    }
+    if (out && out.errore) {
+      $("url-text-box").open = true;
+      const why = out.errore === "non_ricetta" ? "Nel testo incollato non trovo una ricetta."
+        : out.errore === "strumento" ? "Con la tua chiave l'app non può leggere le pagine web."
+        : "Non riesco a leggere questa pagina (può essere un video, un social o una pagina riservata).";
+      setStatus(st, why + " Copia ingredienti e preparazione dalla pagina, incollali nel riquadro qui sopra e tocca di nuovo «Adatta la ricetta».", "error");
+      return;
+    }
+    const rc = out && out.ricetta;
+    if (!rc || !Array.isArray(rc.passaggi) || !rc.passaggi.length) throw new Error("La ricetta adattata è incompleta. Riprova.");
+    const r = {
+      titolo: String(out.titolo || "Ricetta adattata"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
+      descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
+      analisi: Array.isArray(out.analisi) ? out.analisi.filter((a) => a && a.originale) : [],
+      dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", piano: true, adattata: true,
+      vincoli: vincoli(d, m), pasto: nomePasto(m) + " di " + nomeGiorno(d), giorno: d, slot: m
+    };
+    mine.unshift(r); mine = mine.slice(0, 30); saveMine();
+    setStatus(st, "");
+    renderUrlResult(r);
+    renderMine();
+    $("url-link").value = ""; $("url-text").value = "";
+  } catch (e) {
+    setStatus(st, e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+function saveMine() { store.set("mine", mine.map((r) => { const c = Object.assign({}, r); delete c.loading; return c; })); }
+
+function analisiTable(r) {
+  const wrap = el("div", "analisi");
+  const counts = { ok: 0, sostituito: 0, ridotto: 0, tolto: 0 };
+  r.analisi.forEach((a) => { const s = String(a.stato || "ok").toLowerCase(); counts[s in counts ? s : "ok"]++; });
+  const changed = counts.sostituito + counts.ridotto + counts.tolto;
+  wrap.appendChild(el("p", "analisi-sum", changed
+    ? changed + (changed === 1 ? " ingrediente cambiato" : " ingredienti cambiati") + " su " + r.analisi.length + "; gli altri vanno bene così."
+    : "Tutti gli ingredienti vanno bene: sono cambiate solo le dosi."));
+  const ul = el("ul", "analisi-list");
+  r.analisi.forEach((a) => {
+    const s = String(a.stato || "ok").toLowerCase();
+    const li = el("li", "an-" + (s in counts ? s : "ok"));
+    li.appendChild(el("span", "an-tag", { ok: "va bene", sostituito: "sostituito", ridotto: "ridotto", tolto: "tolto" }[s] || "va bene"));
+    const body = el("span", "an-body");
+    body.appendChild(el("span", "an-orig", String(a.originale)));
+    if (a.con && s !== "ok" && s !== "tolto") { body.appendChild(document.createTextNode(" → ")); body.appendChild(el("b", "", String(a.con))); }
+    if (a.motivo && s !== "ok") body.appendChild(el("span", "an-why", String(a.motivo)));
+    li.appendChild(body);
+    ul.appendChild(li);
+  });
+  wrap.appendChild(ul);
+  return wrap;
+}
+
+function renderUrlResult(r) {
+  const box = $("url-result");
+  box.textContent = "";
+  box.appendChild(el("h4", "sp-rep", "Analisi della ricetta"));
+  if (r.titolo_originale) box.appendChild(el("p", "muted", "Originale: " + r.titolo_originale + " · adattata per " + r.pasto));
+  box.appendChild(analisiTable(r));
+  box.appendChild(el("h4", "sp-rep", "Ricetta adattata"));
+  box.appendChild(recipeCard(r));
+}
+
+function urlRule() {
+  const r = regola($("url-day").value, $("url-meal").value);
+  $("url-rule").textContent = r ? "Quantità da rispettare: " + r + "." : "Questo pasto è libero: la ricetta verrà solo resa compatibile.";
+}
+
+function renderMine() {
+  const box = $("mine");
+  box.textContent = "";
+  $("mine-title").hidden = mine.length === 0;
+  mine.forEach((r, i) => {
+    const row = el("div", "mine-row");
+    row.appendChild(recipeCard(r));
+    const del = el("button", "small", "Elimina");
+    del.type = "button";
+    del.setAttribute("aria-label", "Elimina " + r.titolo);
+    del.addEventListener("click", () => { mine.splice(i, 1); saveMine(); renderMine(); });
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
 /* ---------- Pagina della ricetta ---------- */
 let wakeLock = null;
 
@@ -1534,6 +1722,7 @@ async function loadDetail(r) {
     r.loading = false;
     if (r.alt) { saveAlt(); renderWeek(); }
     if (state.recipes.includes(r)) saveRecipes();
+    if (mine.includes(r)) saveMine();
     if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
   } catch (e) {
     r.loading = false;
@@ -1551,6 +1740,12 @@ function renderDetail(r, failed) {
   box.appendChild(pillsFor(r, d));
   const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
   if (buy.length) box.appendChild(el("p", "buy-line", "Da comprare: " + buy.join(", ")));
+  if (r.adattata) {
+    const src = el("p", "muted");
+    src.appendChild(document.createTextNode("Adattata per " + r.pasto + (r.titolo_originale ? " da «" + r.titolo_originale + "»" : "") + ". "));
+    if (r.fonte) { const a = el("a", "", "Ricetta originale"); a.href = r.fonte; a.target = "_blank"; a.rel = "noopener"; src.appendChild(a); }
+    box.appendChild(src);
+  }
   if (r.nutr) box.appendChild(nutriPanel(r.nutr, r.piano && !r.vincoli
     ? "Valori stimati dalle quantità della ricetta, con tabelle di composizione degli alimenti."
     : "Valori stimati dal modello: sono indicativi."));
@@ -1564,10 +1759,30 @@ function renderDetail(r, failed) {
     return;
   }
 
+  if (r.adattata && r.analisi && r.analisi.length) {
+    const det = el("details", "analisi-det");
+    det.appendChild(el("summary", "", "Cosa è cambiato rispetto all'originale"));
+    det.appendChild(analisiTable(r));
+    box.appendChild(det);
+  }
   const go = el("button", "primary", "Cucina passo passo");
   go.type = "button";
   go.addEventListener("click", () => openCook(r));
   box.appendChild(go);
+
+  if (r.adattata) {
+    if (r.giorno && r.slot && SETTIMANA[r.giorno]) {
+      const key = r.giorno + "_" + r.slot, cur = state.alt[key];
+      const inMenu = !!(cur && cur.adattata && cur.titolo === r.titolo);
+      const use = el("button", "", inMenu ? "Già nel menu: " + r.pasto : "Metti nel menu: " + r.pasto);
+      use.type = "button"; use.disabled = inMenu;
+      use.addEventListener("click", () => {
+        state.alt[key] = Object.assign({}, r, { alt: true }); saveAlt(); renderWeek();
+        use.textContent = "Già nel menu: " + r.pasto; use.disabled = true;
+      });
+      box.appendChild(use);
+    }
+  }
 
   if (Array.isArray(d.ingredienti) && d.ingredienti.length) {
     box.appendChild(el("h4", "", "Ingredienti (spunta mentre li prepari)"));
@@ -2229,7 +2444,7 @@ if ("serviceWorker" in navigator) {
 /* ---------- Avvio ---------- */
 function setBusy(b) {
   state.busy = b;
-  ["btn-analyze", "btn-more", "btn-pm", "btn-test", "btn-clear", "btn-clear2"].forEach((id) => { $(id).disabled = b; });
+  ["btn-analyze", "btn-more", "btn-pm", "btn-test", "btn-clear", "btn-clear2", "btn-url"].forEach((id) => { $(id).disabled = b; });
   $("btn-recipes").disabled = b || !state.ingredients.length;
   document.querySelectorAll(".btn-alt").forEach((x) => { x.disabled = b; });
 }
@@ -2270,6 +2485,7 @@ $("btn-clear2").addEventListener("click", () => clearAll("clear-status2"));
 $("btn-recipes").addEventListener("click", () => makeRecipes(false));
 $("btn-more").addEventListener("click", () => makeRecipes(true));
 $("btn-pm").addEventListener("click", perMeGenerate);
+$("btn-url").addEventListener("click", adattaRicetta);
 $("pm-day").addEventListener("change", renderRule);
 $("pm-meal").addEventListener("change", renderRule);
 $("in-plan").addEventListener("change", (e) => store.set("plan", e.target.checked));
@@ -2297,6 +2513,13 @@ $("form-spesa").addEventListener("submit", (e) => {
 Object.keys(state.alt).forEach((k) => { if (state.alt[k]) delete state.alt[k].loading; });
 state.recipes.forEach((r) => { delete r.loading; });
 GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("pm-day").appendChild(o); });
+GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("url-day").appendChild(o); });
+$("url-day").value = OGGI;
+$("url-meal").value = $("pm-meal").value;
+$("url-day").addEventListener("change", urlRule);
+$("url-meal").addEventListener("change", urlRule);
+urlRule();
+mine.forEach((r) => { delete r.loading; });
 $("pm-day").value = OGGI;
 $("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 12 ? "spuntino1" : h < 15 ? "pranzo" : h < 18 ? "spuntino2" : "cena"; })();
 $("in-plan").checked = store.get("plan", true);
@@ -2309,6 +2532,7 @@ renderModels();
 renderKeyWhere();
 renderIngredients();
 renderRecipes();
+renderMine();
 renderDays();
 renderWeek();
 renderRule();
