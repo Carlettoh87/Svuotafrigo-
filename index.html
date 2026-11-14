@@ -350,6 +350,10 @@ i.mg { background: var(--muted); }
     <label for="in-model">Modello
       <select id="in-model"></select>
     </label>
+    <label class="check" for="in-fast">
+      <input type="checkbox" id="in-fast" checked>
+      Per le ricette usa il modello più veloce (Flash-Lite). Le foto usano sempre il modello scelto qui sopra.
+    </label>
     <p class="muted">I modelli «gemma» sono a pesi aperti (open). I «gemini flash» di solito riconoscono meglio le foto. Se un modello dà errore di limite, provane un altro.</p>
     <div class="row">
       <button type="button" class="primary" id="btn-save">Salva</button>
@@ -630,6 +634,7 @@ const FALLBACK_MODELS = [
   { id: "gemini-flash-latest", label: "Gemini Flash (predefinito)" },
   { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite (più veloce)" }
 ];
+const FAST_MODEL = "gemini-flash-lite-latest";
 const TEMPI = { elenco: 20000, prova: 30000, risposta: 70000 };   // millisecondi di attesa massima
 
 function el(tag, cls, text) {
@@ -641,12 +646,22 @@ function el(tag, cls, text) {
 
 /* ---------- Messaggi di stato ---------- */
 function setStatus(box, text, kind) {
+  if (box._tick) { clearInterval(box._tick); box._tick = null; }
   box.textContent = "";
   if (!text) return;
   const s = el("div", "status" + (kind === "error" ? " error" : ""));
   if (kind === "loading") s.appendChild(el("span", "spinner"));
-  s.appendChild(el("span", "", text));
+  const label = el("span", "", text);
+  s.appendChild(label);
   box.appendChild(s);
+  if (kind === "loading") {   // i secondi che passano: si vede che sta lavorando
+    const t0 = Date.now();
+    box._tick = setInterval(() => {
+      if (!box.isConnected) { clearInterval(box._tick); box._tick = null; return; }
+      const sec = Math.round((Date.now() - t0) / 1000);
+      if (sec >= 3) label.textContent = text + " " + sec + " s";
+    }, 1000);
+  }
 }
 
 /* ---------- Chiamate alla API di Google ---------- */
@@ -687,11 +702,12 @@ async function apiFetch(path, options, ms) {
 /* Quanto «ragiona» il modello prima di rispondere. Di serie Gemini 3 ragiona molto (e con le
    foto la risposta può superare il minuto, oltre il quale Safari interrompe la connessione):
    qui lo riduciamo al minimo utile. Se un modello non accetta l'impostazione, si riprova senza. */
-function thinkingFor(model) {
-  if (/gemma/.test(model)) return null;
+function thinkingFor(model, kind) {
+  if (/gemma/.test(model)) return [null];
   const v = /^gemini-(\d+)\.(\d+)-(flash|pro)/.exec(model);
-  if (v && v[1] === "2") return v[3] === "flash" ? { thinkingBudget: 0 } : { thinkingBudget: 128 };
-  return { thinkingLevel: "low" };
+  if (v && v[1] === "2") return v[3] === "flash" ? [{ thinkingBudget: 0 }, null] : [{ thinkingBudget: 128 }, null];
+  // Le ricette sono solo testo: basta il ragionamento minimo. Per le foto un po' di più.
+  return kind === "ingredienti" ? [{ thinkingLevel: "low" }, null] : [{ thinkingLevel: "minimal" }, { thinkingLevel: "low" }, null];
 }
 
 function netError(e, timedOut) {
@@ -764,14 +780,31 @@ async function generate(model, parts, temperature, think, ms) {
   return text;
 }
 
-/* Il terzo parametro (kind) serve solo alla versione dimostrativa. */
+/* Quale modello usare: per il testo quello veloce (se attivo e disponibile), per le foto quello scelto. */
+function modelFor(kind) {
+  const chosen = state.model || DEFAULT_MODEL;
+  const textOnly = kind === "ricette" || kind === "perme" || kind === "dettaglio";
+  if (textOnly && store.get("fast", true) && !store.get("fastBad", false) && !/gemma/.test(chosen)) return FAST_MODEL;
+  return chosen;
+}
+
+/* Il terzo parametro (kind) dice che tipo di richiesta è: foto, ricette, dettaglio o prova. */
 async function askModel(parts, temperature, kind) {
-  const model = state.model || DEFAULT_MODEL;
-  const think = thinkingFor(model), ms = kind === "test" ? TEMPI.prova : TEMPI.risposta;
-  try { return await generate(model, parts, temperature, think, ms); }
-  catch (e) {
-    if (think && e.status === 400 && !/api.?key/i.test(e.raw || "")) return generate(model, parts, temperature, null, ms);
-    throw e;
+  const chosen = state.model || DEFAULT_MODEL, model = modelFor(kind);
+  const ms = kind === "test" ? TEMPI.prova : TEMPI.risposta;
+  const ladder = thinkingFor(model, kind);
+  for (let i = 0; i < ladder.length; i++) {
+    try { return await generate(model, parts, temperature, ladder[i], ms); }
+    catch (e) {
+      const thinkingRefused = ladder[i] && e.status === 400 && !/api.?key/i.test(e.raw || "");
+      if (thinkingRefused && i < ladder.length - 1) continue;
+      // il modello veloce non è disponibile per questa chiave: si torna a quello scelto
+      if (model !== chosen && (e.status === 404 || e.status === 400 || e.status === 403)) {
+        store.set("fastBad", true);
+        return askModel(parts, temperature, kind);
+      }
+      throw e;
+    }
   }
 }
 
@@ -883,7 +916,16 @@ async function testConnection() {
   try {
     await askModel([{ text: "Rispondi solo con la parola OK." }], 0, "test");
     const s = Math.max(1, Math.round((Date.now() - t0) / 1000));
-    setStatus(st, "Funziona: Google raggiunto in " + s1 + " s, risposta in " + s + (s === 1 ? " secondo" : " secondi") + " con il modello " + state.model + ".");
+    let extra = "";
+    if (modelFor("perme") !== state.model) {
+      const t1 = Date.now();
+      try {
+        await askModel([{ text: "Rispondi solo con la parola OK." }], 0, "perme");
+        const s2 = Math.max(1, Math.round((Date.now() - t1) / 1000));
+        extra = modelFor("perme") === FAST_MODEL ? " Per le ricette il modello veloce risponde in " + s2 + (s2 === 1 ? " secondo." : " secondi.") : "";
+      } catch (e) { extra = " Il modello veloce per le ricette non risponde: verrà usato quello scelto."; }
+    }
+    setStatus(st, "Funziona: Google raggiunto in " + s1 + " s, risposta in " + s + (s === 1 ? " secondo" : " secondi") + " con il modello " + state.model + "." + extra);
   } catch (e) {
     setStatus(st, "Google è raggiungibile e la chiave è valida, ma il modello " + state.model + " non risponde: " + e.message, "error");
   }
@@ -1281,6 +1323,7 @@ function renderWeek() {
     const st = el("div");
     st.setAttribute("role", "status");
     if (state.altBusy === key) setStatus(st, base ? "Cerco un'alternativa…" : "Cerco un'idea…", "loading");
+    else if (alt && alt.loading && !alt.dettaglio) setStatus(st, "Preparo la ricetta completa…", "loading");
     else if (state.altErr[key]) setStatus(st, state.altErr[key], "error");
     wrap.appendChild(st);
 
@@ -1317,6 +1360,7 @@ async function makeAlt(d, m) {
     if (!list.length) throw new Error("Nessuna proposta ricevuta. Riprova.");
     state.alt[key] = list[0];
     saveAlt();
+    setTimeout(() => loadDetail(list[0]), 0);   // pronta quando la apri
   } catch (e) {
     state.altErr[key] = e.message;
   }
@@ -1413,9 +1457,11 @@ function closeRecipe() {
 }
 
 async function loadDetail(r) {
-  if (!r || r.loading) return;
+  if (!r) return;
+  if (r.loading) { if (state.current === r) setStatus($("detail-status"), "Scrivo dosi e passaggi…", "loading"); return; }
   if (!state.key) { closeRecipe(); requireKey($(state.tab === "perme" ? "pm-status" : "recipes-status")); return; }
   r.loading = true;
+  if (r.alt) renderWeek();
   if (state.current === r) setStatus($("detail-status"), "Scrivo dosi e passaggi…", "loading");
   try {
     const out = parseJson(await askModel([{ text: promptDettaglio(r) }], 0.4, "dettaglio"));
@@ -1429,6 +1475,7 @@ async function loadDetail(r) {
     if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
   } catch (e) {
     r.loading = false;
+    if (r.alt) renderWeek();
     if (state.current === r) { setStatus($("detail-status"), e.message, "error"); renderDetail(r, true); }
   }
 }
@@ -1888,6 +1935,7 @@ $("btn-settings").addEventListener("click", () => toggleSettings());
 $("btn-save").addEventListener("click", () => saveSettings(false));
 $("btn-reload-models").addEventListener("click", () => saveSettings(true));
 $("btn-test").addEventListener("click", testConnection);
+$("in-fast").addEventListener("change", (e) => { store.set("fast", e.target.checked); store.set("fastBad", false); });
 $("tab-frigo").addEventListener("click", () => setTab("frigo"));
 $("tab-perme").addEventListener("click", () => setTab("perme"));
 $("tab-spesa").addEventListener("click", () => setTab("spesa"));
@@ -1946,6 +1994,7 @@ $("pm-meal").value = (function () { const h = new Date().getHours(); return h < 
 $("in-plan").checked = store.get("plan", true);
 $("cook-voice").setAttribute("aria-pressed", String(voiceOn));
 $("cook-voice").textContent = voiceOn ? "Voce attiva" : "Leggi ad alta voce";
+$("in-fast").checked = store.get("fast", true);
 renderOnline();
 setTab(state.tab);
 renderModels();
