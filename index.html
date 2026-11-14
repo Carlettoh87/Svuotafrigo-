@@ -1935,7 +1935,7 @@ function renderFav() {
       o.type = "button";
       o.addEventListener("click", () => apriOriginale(f, st));
       acts.appendChild(o);
-    } else if (!f.piano) {
+    } else if (!f.piano && !f.vincoli) {   // le ricette di «Per me» seguono già il menu
       const a = el("button", "small", "Adatta alla dieta");
       a.type = "button"; a.setAttribute("aria-expanded", "false");
       a.addEventListener("click", () => {
