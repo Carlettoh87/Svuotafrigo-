@@ -481,7 +481,7 @@ i.mg { background: var(--muted); }
 
   <section class="card" id="sec-url" data-view="frigo">
     <h2>Da una ricetta trovata online</h2>
-    <p class="muted">Hai trovato una ricetta su un sito? Incolla il link: l'app la legge, sostituisce gli ingredienti non compatibili con il tuo menu e la adatta alle quantità del pasto che scegli.</p>
+    <p class="muted">Hai trovato una ricetta su un sito? Incolla il link: l'app la legge e ti guida passo passo. Se vuoi, la adatta anche al tuo menu.</p>
     <label for="url-link">Link della ricetta
       <input type="url" id="url-link" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
     </label>
@@ -491,6 +491,24 @@ i.mg { background: var(--muted); }
         <textarea id="url-text" rows="6" placeholder="Copia dalla pagina ingredienti e preparazione, e incollali qui"></textarea>
       </label>
     </details>
+    <label class="check" for="url-diet">
+      <input type="checkbox" id="url-diet">
+      Adatta alla mia dieta
+    </label>
+    <div id="url-plain-opts">
+      <label for="url-portions">Porzioni
+        <select id="url-portions">
+          <option value="0">Come nella ricetta originale</option>
+          <option value="1">1 persona</option>
+          <option value="2">2 persone</option>
+          <option value="3">3 persone</option>
+          <option value="4">4 persone</option>
+          <option value="6">6 persone</option>
+        </select>
+      </label>
+    </div>
+    <div id="url-diet-opts" hidden>
+    <p class="muted">Gli ingredienti non compatibili vengono sostituiti e le dosi seguono le quantità del pasto che scegli.</p>
     <div class="row">
       <label for="url-day">Giorno
         <select id="url-day"></select>
@@ -506,7 +524,8 @@ i.mg { background: var(--muted); }
       </label>
     </div>
     <p class="muted" id="url-rule"></p>
-    <button type="button" class="primary" id="btn-url">Adatta la ricetta</button>
+    </div>
+    <button type="button" class="primary" id="btn-url">Leggi la ricetta</button>
     <div id="url-status" role="status" aria-live="polite"></div>
     <div id="url-result"></div>
     <h3 class="mine-title" id="mine-title" hidden>Le mie ricette</h3>
@@ -1252,7 +1271,7 @@ function pillsFor(r, d) {
   if (d && d.tempo_cottura_minuti) pills.appendChild(el("span", "pill", "cottura " + d.tempo_cottura_minuti + " min"));
   if (!d && r.tempo_minuti) pills.appendChild(el("span", "pill", r.tempo_minuti + " min"));
   if (r.difficolta) pills.appendChild(el("span", "pill", String(r.difficolta)));
-  if (!r.piano) {
+  if (!r.piano && !r.daLink) {
     const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
     pills.appendChild(buy.length
       ? el("span", "pill buy", buy.length === 1 ? "manca 1 ingrediente" : "mancano " + buy.length + " ingredienti")
@@ -1543,6 +1562,32 @@ function promptAdatta(d, m, url, text) {
   return p;
 }
 
+/* Ricetta così com'è: letta dalla pagina e riscritta come guida passo passo (senza dieta). */
+function promptLeggi(url, text, porzioni) {
+  let p = "Sei un cuoco di casa italiano che spiega a una persona non esperta. ";
+  p += url
+    ? "Leggi la ricetta che si trova a questo indirizzo: " + url + " . Se non riesci a leggere la pagina o non contiene una ricetta, rispondi solo con {\"errore\":\"non_leggibile\"}. "
+    : "Ecco il testo di una ricetta copiato da una pagina web:\n«" + text.slice(0, 12000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
+  p += "Riporta la ricetta fedelmente: stessi ingredienti e stesso procedimento dell'originale, senza sostituzioni. ";
+  p += porzioni ? "Ricalcola le dosi per " + porzioni + (porzioni === 1 ? " persona. " : " persone. ") : "Mantieni le porzioni dell'originale. ";
+  p += "Scrivi con parole tue, senza copiare il testo della pagina: quantità esatte per ogni ingrediente; passaggi chiari, ognuno con una sola azione, " +
+    "lo strumento da usare, il fuoco o la temperatura, i minuti e il segnale per capire che è pronto. " +
+    "Rispondi SOLO con JSON, senza altro testo, in questo formato: " +
+    '{"titolo":"nome del piatto","titolo_originale":"...","descrizione":"una frase","tempo_minuti":30,"difficolta":"facile",' +
+    '"ricetta":{"porzioni":4,"tempo_preparazione_minuti":10,"tempo_cottura_minuti":15,"ingredienti":[{"nome":"...","quantita":"...","note":"..."}],' +
+    '"attrezzatura":["..."],"passaggi":[{"titolo":"...","istruzioni":"...","minuti":5}],"consigli":["..."],"conservazione":"...",' + NUTR_FMT + '}} ' +
+    'dove "minuti" è la durata da cronometrare (0 se nessuna) e "nutrizione" è la stima per UNA porzione, calcolata dalle quantità a crudo.';
+  return p;
+}
+
+function urlMode() {
+  const diet = $("url-diet").checked;
+  store.set("url_diet", diet);
+  $("url-diet-opts").hidden = !diet;
+  $("url-plain-opts").hidden = diet;
+  $("btn-url").textContent = diet ? "Adatta la ricetta" : "Leggi la ricetta";
+}
+
 async function adattaRicetta() {
   const st = $("url-status");
   if (state.busy || !requireKey(st)) return;
@@ -1552,14 +1597,16 @@ async function adattaRicetta() {
   if (url && !/^https?:\/\/[^\s/]+\.[^\s]+/i.test(url)) { setStatus(st, "Il link non sembra valido: copialo di nuovo dalla barra dell'indirizzo.", "error"); return; }
   if (!url && !text) { setStatus(st, "Incolla il link di una ricetta, oppure il suo testo.", "error"); return; }
   const d = $("url-day").value, m = $("url-meal").value;
+  const diet = $("url-diet").checked, porzioni = parseInt($("url-portions").value, 10) || 0;
   setBusy(true);
   $("url-result").textContent = "";
-  setStatus(st, url && !text ? "Leggo la pagina e adatto la ricetta…" : "Adatto la ricetta…", "loading");
+  setStatus(st, diet ? (url && !text ? "Leggo la pagina e adatto la ricetta…" : "Adatto la ricetta…") : (url && !text ? "Leggo la pagina…" : "Preparo la ricetta…"), "loading");
   try {
     let out, meta = {};
     try {
       const useUrl = url && !text;   // con il testo incollato non serve leggere la pagina
-      out = parseJson(await askModel([{ text: promptAdatta(d, m, useUrl ? url : "", useUrl ? "" : text) }], 0.5, "adatta",
+      const prompt = diet ? promptAdatta(d, m, useUrl ? url : "", useUrl ? "" : text) : promptLeggi(useUrl ? url : "", useUrl ? "" : text, porzioni);
+      out = parseJson(await askModel([{ text: prompt }], diet ? 0.5 : 0.3, "adatta",
         useUrl ? { tools: [{ url_context: {} }], meta: meta } : null));
       const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
       const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
@@ -1578,12 +1625,16 @@ async function adattaRicetta() {
     }
     const rc = out && out.ricetta;
     if (!rc || !Array.isArray(rc.passaggi) || !rc.passaggi.length) throw new Error("La ricetta adattata è incompleta. Riprova.");
-    const r = {
+    const r = diet ? {
       titolo: String(out.titolo || "Ricetta adattata"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
       descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
       analisi: Array.isArray(out.analisi) ? out.analisi.filter((a) => a && a.originale) : [],
       dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", piano: true, adattata: true,
       vincoli: vincoli(d, m), pasto: nomePasto(m) + " di " + nomeGiorno(d), giorno: d, slot: m
+    } : {
+      titolo: String(out.titolo || out.titolo_originale || "Ricetta"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
+      descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
+      dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", daLink: true
     };
     mine.unshift(r); mine = mine.slice(0, 30); saveMine();
     setStatus(st, "");
@@ -1626,6 +1677,11 @@ function analisiTable(r) {
 function renderUrlResult(r) {
   const box = $("url-result");
   box.textContent = "";
+  if (!r.adattata) {
+    box.appendChild(el("p", "analisi-sum", "Ricetta pronta: toccala per seguirla passo passo, con i timer."));
+    box.appendChild(recipeCard(r));
+    return;
+  }
   box.appendChild(el("h4", "sp-rep", "Analisi della ricetta"));
   if (r.titolo_originale) box.appendChild(el("p", "muted", "Originale: " + r.titolo_originale + " · adattata per " + r.pasto));
   box.appendChild(analisiTable(r));
@@ -1740,6 +1796,13 @@ function renderDetail(r, failed) {
   box.appendChild(pillsFor(r, d));
   const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
   if (buy.length) box.appendChild(el("p", "buy-line", "Da comprare: " + buy.join(", ")));
+  if (r.daLink) {
+    const src = el("p", "muted");
+    src.appendChild(document.createTextNode((r.dettaglio && r.dettaglio.porzioni ? "Per " + r.dettaglio.porzioni + (r.dettaglio.porzioni == 1 ? " persona" : " persone") + ". " : "")));
+    if (r.fonte) { const a = el("a", "", "Ricetta originale"); a.href = r.fonte; a.target = "_blank"; a.rel = "noopener"; src.appendChild(a); }
+    else src.appendChild(document.createTextNode("Dal testo incollato."));
+    box.appendChild(src);
+  }
   if (r.adattata) {
     const src = el("p", "muted");
     src.appendChild(document.createTextNode("Adattata per " + r.pasto + (r.titolo_originale ? " da «" + r.titolo_originale + "»" : "") + ". "));
@@ -2517,6 +2580,9 @@ GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("url
 $("url-day").value = OGGI;
 $("url-meal").value = $("pm-meal").value;
 $("url-day").addEventListener("change", urlRule);
+$("url-diet").checked = store.get("url_diet", false);
+$("url-diet").addEventListener("change", urlMode);
+urlMode();
 $("url-meal").addEventListener("change", urlRule);
 urlRule();
 mine.forEach((r) => { delete r.loading; });
