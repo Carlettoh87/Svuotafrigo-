@@ -479,6 +479,40 @@ i.mg { background: var(--muted); }
     <button type="button" id="btn-more" hidden>Proponi altre ricette</button>
   </section>
 
+  <section class="card" id="sec-url" data-view="frigo">
+    <h2>Da una ricetta trovata online</h2>
+    <p class="muted">Hai trovato una ricetta su un sito? Incolla il link: l'app la legge, sostituisce gli ingredienti non compatibili con il tuo menu e la adatta alle quantità del pasto che scegli.</p>
+    <label for="url-link">Link della ricetta
+      <input type="url" id="url-link" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+    </label>
+    <details class="url-text-box" id="url-text-box">
+      <summary>Il link non funziona? Incolla il testo della ricetta</summary>
+      <label for="url-text">Testo della ricetta
+        <textarea id="url-text" rows="6" placeholder="Copia dalla pagina ingredienti e preparazione, e incollali qui"></textarea>
+      </label>
+    </details>
+    <div class="row">
+      <label for="url-day">Giorno
+        <select id="url-day"></select>
+      </label>
+      <label for="url-meal">Pasto
+        <select id="url-meal">
+          <option value="colazione">Colazione</option>
+          <option value="spuntino1">Spuntino del mattino</option>
+          <option value="pranzo" selected>Pranzo</option>
+          <option value="spuntino2">Spuntino del pomeriggio</option>
+          <option value="cena">Cena</option>
+        </select>
+      </label>
+    </div>
+    <p class="muted" id="url-rule"></p>
+    <button type="button" class="primary" id="btn-url">Adatta la ricetta</button>
+    <div id="url-status" role="status" aria-live="polite"></div>
+    <div id="url-result"></div>
+    <h3 class="mine-title" id="mine-title" hidden>Le mie ricette</h3>
+    <div class="recipes" id="mine"></div>
+  </section>
+
   <!-- ===== SCHEDA «PER ME» ===== -->
   <section class="card" id="sec-week" data-view="perme">
     <h2>La mia settimana</h2>
@@ -526,40 +560,6 @@ i.mg { background: var(--muted); }
     <button type="button" class="primary" id="btn-pm">Crea la ricetta</button>
     <div id="pm-status" role="status" aria-live="polite"></div>
     <div class="recipes" id="pm-recipes"></div>
-  </section>
-
-  <section class="card" id="sec-url" data-view="perme">
-    <h2>Da una ricetta trovata online</h2>
-    <p class="muted">Incolla il link di una ricetta: l'app la legge, controlla ogni ingrediente e la adatta alle quantità del pasto che scegli.</p>
-    <label for="url-link">Link della ricetta
-      <input type="url" id="url-link" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
-    </label>
-    <details class="url-text-box" id="url-text-box">
-      <summary>Il link non funziona? Incolla il testo della ricetta</summary>
-      <label for="url-text">Testo della ricetta
-        <textarea id="url-text" rows="6" placeholder="Copia dalla pagina ingredienti e preparazione, e incollali qui"></textarea>
-      </label>
-    </details>
-    <div class="row">
-      <label for="url-day">Giorno
-        <select id="url-day"></select>
-      </label>
-      <label for="url-meal">Pasto
-        <select id="url-meal">
-          <option value="colazione">Colazione</option>
-          <option value="spuntino1">Spuntino del mattino</option>
-          <option value="pranzo" selected>Pranzo</option>
-          <option value="spuntino2">Spuntino del pomeriggio</option>
-          <option value="cena">Cena</option>
-        </select>
-      </label>
-    </div>
-    <p class="muted" id="url-rule"></p>
-    <button type="button" class="primary" id="btn-url">Adatta la ricetta</button>
-    <div id="url-status" role="status" aria-live="polite"></div>
-    <div id="url-result"></div>
-    <h3 class="mine-title" id="mine-title" hidden>Le mie ricette</h3>
-    <div class="recipes" id="mine"></div>
   </section>
 
   <!-- ===== SCHEDA «SPESA» ===== -->
