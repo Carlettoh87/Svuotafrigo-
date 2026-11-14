@@ -273,10 +273,31 @@ textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 .an-why { display: block; font-size: 13.5px; color: var(--muted); margin-top: 2px; }
 .analisi-det { border-top: 1px solid var(--line); padding-top: 8px; }
 .analisi-det summary { cursor: pointer; color: var(--accent); font-size: 15px; padding: 6px 0; }
-.mine-title { margin-top: 10px; }
-.mine-row { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 4px; }
-.mine-row .recipe-card { border-top: 0; }
-.mine-row > button.small { align-self: flex-start; }
+/* Ricette preferite: il cuore accanto a ogni ricetta e la scheda «Preferiti» */
+.rc { position: relative; border-top: 1px solid var(--line); }
+.recipes > .rc:first-child { border-top: 0; }
+.rc > .recipe-card { border-top: 0; padding: 20px 48px 20px 0; }
+.recipes > .rc:first-child > .recipe-card { padding-top: 4px; }
+.fav-btn {
+  position: absolute; top: 12px; right: -10px; width: 48px; height: 48px; min-height: 48px; padding: 0;
+  border: 0; background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center;
+}
+.recipes > .rc:first-child > .fav-btn { top: -4px; }
+.fav-btn svg, .fav-line svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+.fav-btn[aria-pressed="true"], .fav-line[aria-pressed="true"] { color: var(--accent); }
+.fav-btn[aria-pressed="true"] svg, .fav-line[aria-pressed="true"] svg { fill: currentColor; }
+.meal .rc { border-top: 0; }
+.meal .rc > .recipe-card { padding: 0 44px 0 0; }
+.meal .rc > .fav-btn { top: -12px; }
+.fav-line { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; }
+.fav-line svg { width: 18px; height: 18px; }
+.fav-row { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding: 4px 0 20px; }
+.fav-row:first-child { border-top: 0; }
+.fav-row .recipe-card { border-top: 0; padding-bottom: 4px; }
+.fav-note { font: italic 400 16px/1.4 var(--font-display); color: var(--gold); margin: 0; }
+.fav-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fav-adapt { display: flex; flex-direction: column; gap: 12px; padding: 14px 0 0; }
+.fav-adapt[hidden] { display: none; }
 
 /* Modalità cucina */
 main.in-cook > *:not(#cook) { display: none !important; }
@@ -330,12 +351,13 @@ main.in-game > #game { display: flex !important; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); }
 .tabs button {
   flex: 1; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted);
-  min-height: 48px; margin-bottom: -1px;
+  min-height: 48px; margin-bottom: -1px; min-width: 0; padding: 12px 2px; font-size: 11.5px; letter-spacing: .1em;
 }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 main[data-tab="frigo"] [data-view]:not([data-view="frigo"]),
 main[data-tab="perme"] [data-view]:not([data-view="perme"]),
-main[data-tab="spesa"] [data-view]:not([data-view="spesa"]) { display: none; }
+main[data-tab="spesa"] [data-view]:not([data-view="spesa"]),
+main[data-tab="fav"] [data-view]:not([data-view="fav"]) { display: none; }
 
 /* Giorni della settimana */
 .days { display: flex; gap: 6px; }
@@ -383,6 +405,7 @@ i.mg { background: var(--muted); }
     <button type="button" role="tab" id="tab-frigo" aria-selected="true">Dal frigo</button>
     <button type="button" role="tab" id="tab-perme" aria-selected="false">Per me</button>
     <button type="button" role="tab" id="tab-spesa" aria-selected="false">Spesa</button>
+    <button type="button" role="tab" id="tab-fav" aria-selected="false">Preferiti</button>
   </div>
   <div id="offline" class="status" hidden><span>Sei offline: il menu della settimana e le ricette già aperte funzionano. Foto e nuove ricette tornano quando c'è rete.</span></div>
 
@@ -528,8 +551,6 @@ i.mg { background: var(--muted); }
     <button type="button" class="primary" id="btn-url">Leggi la ricetta</button>
     <div id="url-status" role="status" aria-live="polite"></div>
     <div id="url-result"></div>
-    <h3 class="mine-title" id="mine-title" hidden>Le mie ricette</h3>
-    <div class="recipes" id="mine"></div>
   </section>
 
   <!-- ===== SCHEDA «PER ME» ===== -->
@@ -579,6 +600,14 @@ i.mg { background: var(--muted); }
     <button type="button" class="primary" id="btn-pm">Crea la ricetta</button>
     <div id="pm-status" role="status" aria-live="polite"></div>
     <div class="recipes" id="pm-recipes"></div>
+  </section>
+
+  <!-- ===== SCHEDA «PREFERITI» ===== -->
+  <section class="card" id="sec-fav" data-view="fav">
+    <h2>Le mie ricette preferite</h2>
+    <p class="muted" id="fav-empty">Ancora nessuna ricetta. Tocca il cuore accanto a una ricetta, in qualunque scheda, per ritrovarla qui.</p>
+    <p class="muted" id="fav-help" hidden>Tocca una ricetta per cucinarla. Puoi adattarla al tuo menu o eliminarla con i pulsanti sotto.</p>
+    <div class="recipes" id="fav"></div>
   </section>
 
   <!-- ===== SCHEDA «SPESA» ===== -->
@@ -1100,10 +1129,10 @@ function renderKeyWhere() {
 
 /* ---------- Schede ---------- */
 function setTab(tab) {
-  state.tab = ["frigo", "perme", "spesa"].includes(tab) ? tab : "frigo";
+  state.tab = ["frigo", "perme", "spesa", "fav"].includes(tab) ? tab : "frigo";
   store.set("tab", state.tab);
   $("app").dataset.tab = state.tab;
-  ["frigo", "perme", "spesa"].forEach((x) => $("tab-" + x).setAttribute("aria-selected", String(state.tab === x)));
+  ["frigo", "perme", "spesa", "fav"].forEach((x) => $("tab-" + x).setAttribute("aria-selected", String(state.tab === x)));
   if (state.tab === "spesa") renderSpesa();
 }
 
@@ -1280,7 +1309,7 @@ function pillsFor(r, d) {
   return pills;
 }
 
-function recipeCard(r) {
+function recipeCard(r, noFav) {
   const card = el("button", "recipe-card");
   card.type = "button";
   card.appendChild(el("h3", "", String(r.titolo)));
@@ -1291,7 +1320,11 @@ function recipeCard(r) {
   if (main.length && !r.piano) card.appendChild(el("p", "muted", "Con: " + main.join(", ")));
   card.appendChild(el("span", "open", "Apri la ricetta →"));
   card.addEventListener("click", () => openRecipe(r));
-  return card;
+  if (noFav) return card;
+  const wrap = el("div", "rc");
+  wrap.appendChild(card);
+  wrap.appendChild(favButton(r));
+  return wrap;
 }
 
 /* Prepara le ricette ricevute dal modello: valori nutrizionali normalizzati e dati aggiuntivi. */
@@ -1543,11 +1576,11 @@ function renderPm() {
 }
 
 /* ---------- Ricette trovate online: lettura, analisi e adattamento ---------- */
-let mine = store.get("mine", []);   // le ricette adattate, salvate sul telefono
+let urlLast = store.get("url_last", null);   // l'ultima ricetta letta da link (non è un preferito)
 
-function promptAdatta(d, m, url, text) {
+function promptAdatta(d, m, url, text, own) {
   let p = "Sei un cuoco di casa italiano. Cucini seguendo un menu settimanale con quantità prefissate. ";
-  p += url
+  p += own ? "Ecco la ricetta da adattare:\n«" + text.slice(0, 20000) + "»\n" : url
     ? "Leggi la ricetta che si trova a questo indirizzo: " + url + " . Se non riesci a leggere la pagina o non contiene una ricetta, rispondi solo con {\"errore\":\"non_leggibile\"}. "
     : "Ecco il testo di una pagina web con una ricetta (può contenere anche menu, pubblicità, commenti o altre ricette: usa solo la ricetta principale della pagina):\n«" + text.slice(0, 20000) + "»\nSe il testo non contiene una ricetta, rispondi solo con {\"errore\":\"non_ricetta\"}. ";
   p += "Adatta quella ricetta, restando il più possibile fedele al piatto originale. " + vincoli(d, m);
@@ -1610,6 +1643,61 @@ function urlMode() {
   $("btn-url").textContent = diet ? "Adatta la ricetta" : "Leggi la ricetta";
 }
 
+/* Legge una ricetta dal link (prima Jina Reader, poi Google) o dal testo incollato.
+   prompt(u, txt) costruisce la richiesta; msgPage è il messaggio mostrato quando la pagina è stata letta. */
+async function leggiRicetta(url, text, prompt, temp, st, msgPage) {
+  let out = null;
+  const meta = {};
+  const run = (u, txt, extra) => askModel([{ text: prompt(u, txt) }], temp, "adatta", extra).then(parseJson);
+  if (url && !text) {
+    // 1) il testo della pagina, letto da Jina Reader (gratuito, senza chiave)
+    const page = await leggiPagina(url);
+    if (page) {
+      if (msgPage) setStatus(st, msgPage, "loading");
+      try { out = await run("", page, null); } catch (e) { if (e.status) throw e; out = null; }
+      if (out && out.errore) out = null;
+    }
+    // 2) riserva: la lettura delle pagine di Google
+    if (!out) {
+      setStatus(st, "Provo a leggere la pagina con Google…", "loading");
+      try {
+        out = await run(url, "", { tools: [{ url_context: {} }], meta: meta });
+        const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
+        const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
+        if (failed) out = { errore: "non_leggibile" };
+      } catch (e) {
+        if (e.status === 400 && /url_context|tool/i.test(e.raw || "")) out = { errore: page ? "non_leggibile" : "strumento" };
+        else throw e;
+      }
+    }
+  } else {
+    out = await run("", text, null);   // testo incollato: non serve leggere la pagina
+  }
+  return out;
+}
+
+function ricettaLetta(out, url) {
+  const rc = out && out.ricetta;
+  if (!rc || !Array.isArray(rc.passaggi) || !rc.passaggi.length) throw new Error("La ricetta è incompleta. Riprova.");
+  return {
+    titolo: String(out.titolo || out.titolo_originale || "Ricetta"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
+    descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
+    dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", daLink: true
+  };
+}
+
+function ricettaAdattata(out, d, m, url) {
+  const rc = out && out.ricetta;
+  if (!rc || !Array.isArray(rc.passaggi) || !rc.passaggi.length) throw new Error("La ricetta adattata è incompleta. Riprova.");
+  return {
+    titolo: String(out.titolo || "Ricetta adattata"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
+    descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
+    analisi: Array.isArray(out.analisi) ? out.analisi.filter((a) => a && a.originale) : [],
+    dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", piano: true, adattata: true,
+    vincoli: vincoli(d, m), pasto: nomePasto(m) + " di " + nomeGiorno(d), giorno: d, slot: m
+  };
+}
+
 async function adattaRicetta() {
   const st = $("url-status");
   if (state.busy || !requireKey(st)) return;
@@ -1624,32 +1712,9 @@ async function adattaRicetta() {
   $("url-result").textContent = "";
   setStatus(st, diet ? (url && !text ? "Leggo la pagina e adatto la ricetta…" : "Adatto la ricetta…") : (url && !text ? "Leggo la pagina…" : "Preparo la ricetta…"), "loading");
   try {
-    let out = null, meta = {};
-    const run = (u, txt, extra) => askModel([{ text: diet ? promptAdatta(d, m, u, txt) : promptLeggi(u, txt, porzioni) }], diet ? 0.5 : 0.3, "adatta", extra).then(parseJson);
-    if (url && !text) {
-      // 1) il testo della pagina, letto da Jina Reader (gratuito, senza chiave)
-      const page = await leggiPagina(url);
-      if (page) {
-        setStatus(st, diet ? "Pagina letta: adatto la ricetta…" : "Pagina letta: preparo la ricetta…", "loading");
-        try { out = await run("", page, null); } catch (e) { if (e.status) throw e; out = null; }
-        if (out && out.errore) out = null;
-      }
-      // 2) riserva: la lettura delle pagine di Google
-      if (!out) {
-        setStatus(st, "Provo a leggere la pagina con Google…", "loading");
-        try {
-          out = await run(url, "", { tools: [{ url_context: {} }], meta: meta });
-          const um = meta.url && (meta.url.urlMetadata || meta.url.url_metadata);
-          const failed = um && um.length && um.every((x) => !/SUCCESS/.test(x.urlRetrievalStatus || x.url_retrieval_status || ""));
-          if (failed) out = { errore: "non_leggibile" };
-        } catch (e) {
-          if (e.status === 400 && /url_context|tool/i.test(e.raw || "")) out = { errore: page ? "non_leggibile" : "strumento" };
-          else throw e;
-        }
-      }
-    } else {
-      out = await run("", text, null);   // testo incollato: non serve leggere la pagina
-    }
+    const out = await leggiRicetta(url, text,
+      (u, txt) => (diet ? promptAdatta(d, m, u, txt) : promptLeggi(u, txt, porzioni)), diet ? 0.5 : 0.3, st,
+      diet ? "Pagina letta: adatto la ricetta…" : "Pagina letta: preparo la ricetta…");
     if (out && out.errore) {
       $("url-text-box").open = true;
       const why = out.errore === "non_ricetta" ? "Nel testo incollato non trovo una ricetta."
@@ -1658,23 +1723,11 @@ async function adattaRicetta() {
       setStatus(st, why + " Copia ingredienti e preparazione dalla pagina, incollali nel riquadro qui sopra e tocca di nuovo «" + $("btn-url").textContent + "».", "error");
       return;
     }
-    const rc = out && out.ricetta;
-    if (!rc || !Array.isArray(rc.passaggi) || !rc.passaggi.length) throw new Error("La ricetta adattata è incompleta. Riprova.");
-    const r = diet ? {
-      titolo: String(out.titolo || "Ricetta adattata"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
-      descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
-      analisi: Array.isArray(out.analisi) ? out.analisi.filter((a) => a && a.originale) : [],
-      dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", piano: true, adattata: true,
-      vincoli: vincoli(d, m), pasto: nomePasto(m) + " di " + nomeGiorno(d), giorno: d, slot: m
-    } : {
-      titolo: String(out.titolo || out.titolo_originale || "Ricetta"), titolo_originale: out.titolo_originale ? String(out.titolo_originale) : "",
-      descrizione: out.descrizione ? String(out.descrizione) : "", tempo_minuti: out.tempo_minuti, difficolta: out.difficolta,
-      dettaglio: rc, nutr: normN(rc.nutrizione), fonte: url || "", daLink: true
-    };
-    mine.unshift(r); mine = mine.slice(0, 30); saveMine();
+    const r = diet ? ricettaAdattata(out, d, m, url) : ricettaLetta(out, url);
+    if (diet && text) r.testo = text.slice(0, 20000);   // serve per ritrovare la versione originale
+    urlLast = r; store.set("url_last", r);
     setStatus(st, "");
     renderUrlResult(r);
-    renderMine();
     $("url-link").value = ""; $("url-text").value = "";
   } catch (e) {
     setStatus(st, e.message, "error");
@@ -1683,7 +1736,6 @@ async function adattaRicetta() {
   }
 }
 
-function saveMine() { store.set("mine", mine.map((r) => { const c = Object.assign({}, r); delete c.loading; return c; })); }
 
 function analisiTable(r) {
   const wrap = el("div", "analisi");
@@ -1713,7 +1765,7 @@ function renderUrlResult(r) {
   const box = $("url-result");
   box.textContent = "";
   if (!r.adattata) {
-    box.appendChild(el("p", "analisi-sum", "Ricetta pronta: toccala per seguirla passo passo, con i timer."));
+    box.appendChild(el("p", "analisi-sum", "Ricetta pronta: toccala per seguirla passo passo, con i timer. Tocca il cuore per tenerla tra le preferite."));
     box.appendChild(recipeCard(r));
     return;
   }
@@ -1721,6 +1773,7 @@ function renderUrlResult(r) {
   if (r.titolo_originale) box.appendChild(el("p", "muted", "Originale: " + r.titolo_originale + " · adattata per " + r.pasto));
   box.appendChild(analisiTable(r));
   box.appendChild(el("h4", "sp-rep", "Ricetta adattata"));
+  box.appendChild(el("p", "muted", "Tocca il cuore per tenerla tra le preferite."));
   box.appendChild(recipeCard(r));
 }
 
@@ -1729,18 +1782,209 @@ function urlRule() {
   $("url-rule").textContent = r ? "Quantità da rispettare: " + r + "." : "Questo pasto è libero: la ricetta verrà solo resa compatibile.";
 }
 
-function renderMine() {
-  const box = $("mine");
+/* ---------- Ricette preferite ---------- */
+const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-9.2-9.4C1.7 7.6 3.9 4.5 7.2 4.5c2 0 3.6 1.1 4.8 2.8 1.2-1.7 2.8-2.8 4.8-2.8 3.3 0 5.5 3.1 4.4 6.4-1.6 4.8-9.2 9.4-9.2 9.4z"/></svg>';
+let fav = store.get("fav", null);
+if (!Array.isArray(fav)) {   // le versioni precedenti salvavano da sole le ricette lette da link: diventano preferite
+  fav = (store.get("mine", []) || []).filter((r) => r && r.titolo);
+  fav.forEach((r) => { delete r.loading; r.fid = favKey(r); });
+  store.set("fav", fav); store.set("mine", []);
+}
+
+function favKey(r) {
+  return r.fid || [r.titolo, r.fonte || "", r.adattata ? r.giorno + "_" + r.slot : ""].join("|").toLowerCase();
+}
+function favIndex(r) {
+  const k = favKey(r);
+  return fav.findIndex((f) => f === r || f.fid === k || (f.orig && (f.orig === r || f.orig.fid === k)));
+}
+function cleanCopy(r) {
+  const c = JSON.parse(JSON.stringify(r, (k, v) => (k === "loading" ? undefined : v)));
+  delete c.alt;
+  return c;
+}
+function saveFav() { store.set("fav", fav.map(cleanCopy)); }
+
+function addFav(r) {
+  if (favIndex(r) >= 0) return;
+  const c = cleanCopy(r);
+  // ricetta dal frigo non ancora aperta: conserva gli alimenti di adesso, servono per scriverla poi
+  if (!c.dettaglio && !c.vincoli) c.ctx = Object.assign(contesto(), { ingredients: state.ingredients.slice() });
+  c.fid = favKey(r);
+  fav.unshift(c);
+  saveFav(); renderFav();
+}
+function removeFav(r) {
+  const i = favIndex(r);
+  if (i >= 0) { fav.splice(i, 1); saveFav(); renderFav(); }
+}
+/* Quando una ricetta riceve dosi e passaggi, li copia anche nella sua versione tra i preferiti. */
+function syncFav(r) {
+  const k = favKey(r);
+  let hit = false;
+  fav.forEach((f) => [f, f.orig].forEach((x) => {
+    if (!x) return;
+    if (x === r) hit = true;
+    else if (x.fid === k) { hit = true; if (!x.dettaglio && r.dettaglio) { x.dettaglio = r.dettaglio; if (r.nutr) x.nutr = r.nutr; } }
+  }));
+  if (hit) saveFav();
+}
+
+function favButton(r, withText) {
+  const b = el("button", withText ? "small fav-line" : "fav-btn");
+  b.type = "button";
+  b.innerHTML = HEART + (withText ? "<span></span>" : "");
+  b._sync = () => {
+    const on = favIndex(r) >= 0;
+    b.setAttribute("aria-pressed", String(on));
+    if (withText) b.lastChild.textContent = on ? "Tra i preferiti" : "Aggiungi ai preferiti";
+    else b.setAttribute("aria-label", (on ? "Togli dai preferiti: " : "Aggiungi ai preferiti: ") + r.titolo);
+  };
+  b._sync();
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (favIndex(r) >= 0) removeFav(r); else addFav(r);
+    document.querySelectorAll(".fav-btn, .fav-line").forEach((x) => x._sync && x._sync());
+  });
+  return b;
+}
+
+/* La ricetta in forma di testo, da passare al modello per adattarla. */
+function testoRicetta(r) {
+  const d = r.dettaglio;
+  let t = r.titolo + (r.descrizione ? " — " + r.descrizione : "") + "\n";
+  if (d) {
+    if (d.porzioni) t += "Porzioni: " + d.porzioni + "\n";
+    t += "Ingredienti:\n" + (d.ingredienti || []).map((x) => "- " + (typeof x === "string" ? x
+      : [x.quantita, x.nome, x.note ? "(" + x.note + ")" : ""].filter(Boolean).join(" "))).join("\n") + "\n";
+    t += "Preparazione:\n" + (d.passaggi || []).map((s, i) => (i + 1) + ". " + (typeof s === "string" ? s
+      : [s.titolo, s.istruzioni].filter(Boolean).join(": "))).join("\n");
+  } else {
+    const main = Array.isArray(r.ingredienti_principali) ? r.ingredienti_principali.filter(Boolean) : [];
+    if (main.length) t += "Ingredienti principali: " + main.join(", ") + "\n";
+    if (r.tempo_minuti) t += "Tempo: " + r.tempo_minuti + " minuti\n";
+  }
+  return t;
+}
+
+async function adattaPreferito(f, d, m, st) {
+  if (state.busy || !requireKey(st)) return;
+  setBusy(true);
+  setStatus(st, "Adatto la ricetta al tuo menu…", "loading");
+  try {
+    const out = parseJson(await askModel([{ text: promptAdatta(d, m, "", testoRicetta(f), true) }], 0.5, "adatta"));
+    if (out && out.errore) throw new Error("Non riesco ad adattare questa ricetta. Riprova.");
+    const r = ricettaAdattata(out, d, m, f.fonte || "");
+    if (!r.titolo_originale) r.titolo_originale = f.titolo;
+    r.orig = cleanCopy(f); delete r.orig.orig;
+    r.fid = favKey(r);
+    const i = fav.indexOf(f);
+    if (i >= 0) fav[i] = r; else fav.unshift(r);
+    saveFav(); renderFav();
+    const nrow = Array.from(document.querySelectorAll(".fav-row")).find((x) => x.dataset.fid === r.fid);
+    const nst = nrow && nrow.querySelector('[role="status"]');
+    if (nst) setStatus(nst, "Fatto: apri la ricetta per vedere cosa è cambiato. L'originale resta sotto «Versione originale».");
+  } catch (e) {
+    setStatus(st, e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function apriOriginale(f, st) {
+  if (f.orig) { openRecipe(f.orig); return; }
+  if (!f.fonte && !f.testo) {
+    setStatus(st, "La versione originale di questa ricetta non è stata conservata.", "error");
+    return;
+  }
+  if (state.busy || !requireKey(st)) return;
+  setBusy(true);
+  setStatus(st, "Recupero la ricetta originale…", "loading");
+  try {
+    const out = await leggiRicetta(f.fonte, f.testo || "", (u, txt) => promptLeggi(u, txt, 0), 0.3, st, "Pagina letta: preparo la ricetta originale…");
+    if (!out || out.errore) throw new Error("Non riesco più a leggere la pagina originale. Riprova più tardi.");
+    const o = ricettaLetta(out, f.fonte);
+    o.fid = favKey(o);
+    f.orig = o;
+    saveFav();
+    setStatus(st, "");
+    openRecipe(o);
+  } catch (e) {
+    setStatus(st, e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderFav() {
+  const box = $("fav");
   box.textContent = "";
-  $("mine-title").hidden = mine.length === 0;
-  mine.forEach((r, i) => {
-    const row = el("div", "mine-row");
-    row.appendChild(recipeCard(r));
+  $("fav-empty").hidden = fav.length > 0;
+  $("fav-help").hidden = fav.length === 0;
+  fav.forEach((f) => {
+    const row = el("div", "fav-row");
+    row.dataset.fid = f.fid || "";
+    row.appendChild(recipeCard(f, true));
+    if (f.adattata) row.appendChild(el("p", "fav-note", "Adattata al menu: " + f.pasto + "."));
+    const st = el("div");
+    st.setAttribute("role", "status"); st.setAttribute("aria-live", "polite");
+    const acts = el("div", "fav-acts");
+    let panel = null;
+    if (f.adattata) {
+      const o = el("button", "small", "Versione originale");
+      o.type = "button";
+      o.addEventListener("click", () => apriOriginale(f, st));
+      acts.appendChild(o);
+    } else if (!f.piano) {
+      const a = el("button", "small", "Adatta alla dieta");
+      a.type = "button"; a.setAttribute("aria-expanded", "false");
+      a.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+        a.setAttribute("aria-expanded", String(!panel.hidden));
+      });
+      acts.appendChild(a);
+      panel = el("div", "fav-adapt");
+      panel.hidden = true;
+      const r1 = el("div", "row");
+      const day = el("select"), meal = el("select");
+      GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; day.appendChild(o); });
+      PASTI.forEach((p) => { const o = el("option", "", p[1]); o.value = p[0]; meal.appendChild(o); });
+      day.value = OGGI; meal.value = $("url-meal").value || "pranzo";
+      const l1 = el("label", "", "Giorno"), l2 = el("label", "", "Pasto");
+      l1.appendChild(day); l2.appendChild(meal);
+      r1.appendChild(l1); r1.appendChild(l2);
+      const rule = el("p", "muted");
+      const upd = () => {
+        const q = regola(day.value, meal.value);
+        rule.textContent = q ? "Quantità da rispettare: " + q + "." : "Questo pasto è libero: la ricetta verrà solo resa compatibile.";
+      };
+      day.addEventListener("change", upd); meal.addEventListener("change", upd); upd();
+      const go = el("button", "primary", "Adatta la ricetta");
+      go.type = "button";
+      go.addEventListener("click", () => adattaPreferito(f, day.value, meal.value, st));
+      panel.appendChild(el("p", "muted", "Gli ingredienti non compatibili vengono sostituiti e le dosi seguono il pasto che scegli. L'originale resta disponibile."));
+      panel.appendChild(r1); panel.appendChild(rule); panel.appendChild(go);
+    }
     const del = el("button", "small", "Elimina");
     del.type = "button";
-    del.setAttribute("aria-label", "Elimina " + r.titolo);
-    del.addEventListener("click", () => { mine.splice(i, 1); saveMine(); renderMine(); });
-    row.appendChild(del);
+    del.setAttribute("aria-label", "Elimina " + f.titolo);
+    let armed = null;
+    del.addEventListener("click", () => {
+      if (!armed) {
+        del.textContent = "Tocca di nuovo per eliminare";
+        armed = setTimeout(() => { armed = null; del.textContent = "Elimina"; }, 4000);
+        return;
+      }
+      clearTimeout(armed);
+      const i = fav.indexOf(f);
+      if (i >= 0) { fav.splice(i, 1); saveFav(); }
+      renderFav();
+      document.querySelectorAll(".fav-btn, .fav-line").forEach((x) => x._sync && x._sync());
+    });
+    acts.appendChild(del);
+    row.appendChild(acts);
+    if (panel) row.appendChild(panel);
+    row.appendChild(st);
     box.appendChild(row);
   });
 }
@@ -1750,15 +1994,16 @@ let wakeLock = null;
 
 
 function promptDettaglio(r) {
-  const c = contesto();
+  const c = r.ctx || contesto();
+  const ings = r.ctx ? (r.ctx.ingredients || []) : state.ingredients;
   const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
   let p = "Sei un cuoco di casa italiano che spiega a una persona non esperta. Scrivi la ricetta completa e precisa di «" +
     r.titolo + "»" + (r.descrizione ? " (" + r.descrizione + ")" : "") + ". ";
   if (r.vincoli) {
     p += r.vincoli;
-    if (state.ingredients.length) p += "Alimenti disponibili in casa: " + state.ingredients.join(", ") + ". ";
+    if (ings.length) p += "Alimenti disponibili in casa: " + ings.join(", ") + ". ";
   } else {
-    p += "È per " + c.people + (c.people === 1 ? " persona" : " persone") + ". Ingredienti disponibili in casa: " + state.ingredients.join(", ") + ". " + dispensa(c);
+    p += "È per " + c.people + (c.people === 1 ? " persona" : " persone") + ". Ingredienti disponibili in casa: " + ings.join(", ") + ". " + dispensa(c);
     if (c.plan) p += EVITA;
     if (c.notes) p += "Preferenze da rispettare: " + c.notes + ". ";
   }
@@ -1813,7 +2058,8 @@ async function loadDetail(r) {
     r.loading = false;
     if (r.alt) { saveAlt(); renderWeek(); }
     if (state.recipes.includes(r)) saveRecipes();
-    if (mine.includes(r)) saveMine();
+    syncFav(r);
+    if (urlLast === r) store.set("url_last", urlLast);
     if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
   } catch (e) {
     r.loading = false;
@@ -1829,6 +2075,9 @@ function renderDetail(r, failed) {
   box.appendChild(el("h2", "", String(r.titolo)));
   if (r.descrizione) box.appendChild(el("p", "muted", String(r.descrizione)));
   box.appendChild(pillsFor(r, d));
+  const owner = fav.find((f) => f.orig === r);
+  if (owner) box.appendChild(el("p", "fav-note", "Versione originale. Tra i preferiti c'è anche quella adattata per " + owner.pasto + "."));
+  else box.appendChild(favButton(r, true));
   const buy = Array.isArray(r.da_comprare) ? r.da_comprare.filter(Boolean) : [];
   if (buy.length) box.appendChild(el("p", "buy-line", "Da comprare: " + buy.join(", ")));
   if (r.daLink) {
@@ -2560,6 +2809,7 @@ $("in-fast").addEventListener("change", (e) => { store.set("fast", e.target.chec
 $("tab-frigo").addEventListener("click", () => setTab("frigo"));
 $("tab-perme").addEventListener("click", () => setTab("perme"));
 $("tab-spesa").addEventListener("click", () => setTab("spesa"));
+$("tab-fav").addEventListener("click", () => setTab("fav"));
 $("in-camera").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
 $("in-library").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
 $("in-camera2").addEventListener("change", (e) => { addPhotos(e.target.files, $("pm-status")); e.target.value = ""; });
@@ -2620,7 +2870,8 @@ $("url-diet").addEventListener("change", urlMode);
 urlMode();
 $("url-meal").addEventListener("change", urlRule);
 urlRule();
-mine.forEach((r) => { delete r.loading; });
+fav.forEach((r) => { delete r.loading; if (r.orig) delete r.orig.loading; });
+if (urlLast) { delete urlLast.loading; renderUrlResult(urlLast); }
 $("pm-day").value = OGGI;
 $("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 12 ? "spuntino1" : h < 15 ? "pranzo" : h < 18 ? "spuntino2" : "cena"; })();
 $("in-plan").checked = store.get("plan", true);
@@ -2633,7 +2884,7 @@ renderModels();
 renderKeyWhere();
 renderIngredients();
 renderRecipes();
-renderMine();
+renderFav();
 renderDays();
 renderWeek();
 renderRule();
