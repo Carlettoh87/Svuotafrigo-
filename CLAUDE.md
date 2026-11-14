@@ -17,6 +17,7 @@ Ogni volta che aggiungi, togli o cambi una funzione visibile all'utente (nuova s
 
 ## Pubblicazione
 
+- Non pubblicare mai senza conferma: dopo le prove, descrivi in breve cosa cambia e chiedi all'utente se procedere con il rilascio (nuove funzioni e correzioni). Fai il push solo dopo un suo sì esplicito, dato per quel rilascio.
 - Prima di pubblicare, prova le modifiche in automatico (jsdom o Playwright) e controlla la sintassi del JavaScript.
 - Dopo il push verifica che i file online coincidano con quelli locali.
 - Se cambi `sw.js` o la lista dei file in copia, aumenta il numero in `CACHE`.
