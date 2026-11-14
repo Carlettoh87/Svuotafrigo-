@@ -238,7 +238,9 @@ main[data-tab="frigo"] [data-view="perme"], main[data-tab="perme"] [data-view="f
 .meal-label { font-size: 11.5px; font-weight: 500; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
 .meal .recipe-card { border-top: 0; padding: 0; }
 .meal .simple { display: flex; flex-direction: column; gap: 6px; }
-.meal button.small { align-self: flex-start; margin-top: 6px; }
+.meal .row { margin-top: 6px; gap: 8px; }
+.meal .row > button.small { flex: 0 1 auto; }
+.meal [role="status"]:empty { display: none; }
 .day-total { border-left: 2px solid var(--gold); padding: 8px 14px; background: var(--chip); font-size: 15.5px; }
 
 /* Calorie e nutrienti */
@@ -293,6 +295,7 @@ i.mg { background: var(--muted); }
       <button type="button" class="primary" id="btn-save">Salva</button>
       <button type="button" id="btn-reload-models">Aggiorna elenco modelli</button>
     </div>
+    <button type="button" id="btn-test">Prova la connessione</button>
     <div id="settings-status" role="status" aria-live="polite"></div>
   </section>
 
@@ -393,7 +396,9 @@ i.mg { background: var(--muted); }
       <label for="pm-meal">Pasto
         <select id="pm-meal">
           <option value="colazione">Colazione</option>
+          <option value="spuntino1">Spuntino del mattino</option>
           <option value="pranzo">Pranzo</option>
+          <option value="spuntino2">Spuntino del pomeriggio</option>
           <option value="cena">Cena</option>
         </select>
       </label>
@@ -431,9 +436,15 @@ const CEREALE_SG = "70 g di riso basmati, pasta di grano saraceno, grano saracen
 const LEGUMI = "150 g di legumi in scatola o in vetro (oppure 50 g di legumi secchi: ceci, piselli, fagioli o lenticchie); in alternativa a cereale e legumi insieme, 90 g di pasta di farina di legumi 100%";
 const CARNE = "200 g di petto di pollo senza pelle, petto di tacchino, arista, vitella o sovracoscio, oppure 150 g di carne rossa";
 const CONTORNO = "verdura a volontà; 10 ml di olio extravergine d'oliva (1 cucchiaio)";
+const FRUTTO = "1 frutto di stagione (150 g)";
+const SECCA = FRUTTO + "; 15 g di frutta secca (mandorle, noci, nocciole o anacardi)";
+const YOGURT = FRUTTO + "; 150 g di yogurt greco bianco 0% (o yogurt proteico)";
+const FORMAGGIO = FRUTTO + "; 20 g di parmigiano";
 const REGOLE = {
   colazione_sg: "150 ml di latte vaccino parzialmente scremato, più una sola di queste opzioni: 4 gallette di mais o di riso con una spalmata di marmellata (a piacere un velo di burro di arachidi 100%); 40 g di cornflakes; 40 g di biscotti secchi senza glutine e senza zuccheri aggiunti; 40 g di fiocchi di avena; pancake con 45 g di farina di avena, 30 ml di latte e 1 albume, con una spalmata di marmellata; 4 gallette con marmellata e una spalmata di ricotta vaccina light",
   colazione: "150 ml di latte vaccino parzialmente scremato, più una sola di queste opzioni: 50 g di pane integrale con una spalmata di marmellata (a piacere un velo di burro di arachidi 100%); 40 g di cereali integrali; 40 g di fette biscottate integrali con marmellata; 40 g di biscotti secchi; 40 g di fiocchi di avena; pancake con 45 g di farina 00, 30 ml di latte e 1 albume, con marmellata; 50 g di pane integrale con marmellata e una spalmata di ricotta vaccina light",
+  spuntino1: { lun: SECCA, mar: SECCA, mer: SECCA, gio: SECCA, ven: SECCA, sab: FRUTTO, dom: SECCA },
+  spuntino2: { lun: YOGURT, mar: YOGURT, mer: FORMAGGIO, gio: YOGURT, ven: FRUTTO + "; 150 g di yogurt greco bianco 0%", sab: FRUTTO, dom: FORMAGGIO },
   pranzo: {
     lun: CEREALE_SG + "; 100 g di stracchino light (oppure 100 g di feta, oppure 50 g di salmone affumicato); " + CONTORNO,
     mar: CEREALE_SG + "; 200 g di gamberetti; " + CONTORNO,
@@ -467,6 +478,20 @@ const STAGIONE = [
   "carote, broccoli, cavolfiori, cavoli, cicoria, fagiolini, finocchi, funghi, insalata, radicchio, rape, sedano, spinaci, zucca",
   "bietole, carote, broccoli, cavolfiori, cavoli, cicoria, finocchi, funghi, insalata, radicchio, rape, spinaci, zucca"
 ];
+const FRUTTA_STAGIONE = [
+  "arance, clementine, kiwi, limoni, mandarini, mele, pere, pompelmi",
+  "arance, clementine, kiwi, limoni, mandarini, mele, pere, pompelmi",
+  "arance, kiwi, limoni, mele, pere, pompelmi",
+  "arance, fragole, kiwi, limoni, mele, nespole, pere, pompelmi",
+  "ciliegie, fragole, kiwi, lamponi, mele, meloni, nespole, pompelmi, pere",
+  "albicocche, amarene, ciliegie, fichi, fragole, lamponi, meloni, pesche, susine",
+  "albicocche, amarene, anguria, ciliegie, fichi, fragole, lamponi, meloni, mirtilli, pesche, prugne, susine",
+  "anguria, fichi, fragole, lamponi, mele, meloni, mirtilli, pere, pesche, prugne, susine, uva",
+  "fichi, lamponi, mele, meloni, mirtilli, pere, pesche, prugne, susine, uva",
+  "clementine, cachi, lamponi, limoni, mele, pere, uva, melagrana",
+  "arance, clementine, cachi, kiwi, limoni, mandarini, mele, pere, pompelmi, uva",
+  "arance, clementine, cachi, kiwi, limoni, mandarini, mele, pere, pompelmi, uva"
+];
 const EVITA = "Ingredienti da non usare: aglio, cipolla, peperoncino, pepe, menta, cioccolato, caffè, alcolici, burro, panna. Niente fritture. ";
 const NUTR_FMT = '"nutrizione":{"kcal":450,"proteine_g":30,"carboidrati_g":40,"grassi_g":15,"fibre_g":6}';
 const NUTR_NOTA = ' "nutrizione" è la stima per UNA porzione, calcolata dagli ingredienti e dalle loro quantità a crudo.';
@@ -486,10 +511,17 @@ const state = {
   ingredients: store.get("ingredients", []),
   recipes: [],                             // scheda «Dal frigo»
   pmRecipes: [],                           // scheda «Per me», dalla foto
-  alt: {},                                 // alternative proposte per i pasti della settimana
+  alt: store.get("alt", {}),               // alternative proposte per i pasti della settimana
+  altBusy: null,
+  altErr: {},
   current: null,
   busy: false
 };
+
+if (store.get("v", 1) < 2) {   // versione 2: nuovo modello predefinito
+  state.model = ""; state.models = [];
+  store.set("model", ""); store.set("models", []); store.set("v", 2);
+}
 
 const $ = (id) => document.getElementById(id);
 const API = "https://generativelanguage.googleapis.com/v1beta";
@@ -538,19 +570,95 @@ async function apiFetch(path, options) {
   return data;
 }
 
+/* Quanto «ragiona» il modello prima di rispondere. Di serie Gemini 3 ragiona molto (e con le
+   foto la risposta può superare il minuto, oltre il quale Safari interrompe la connessione):
+   qui lo riduciamo al minimo utile. Se un modello non accetta l'impostazione, si riprova senza. */
+function thinkingFor(model) {
+  if (/gemma/.test(model)) return null;
+  const v = /^gemini-(\d+)\.(\d+)-(flash|pro)/.exec(model);
+  if (v && v[1] === "2") return v[3] === "flash" ? { thinkingBudget: 0 } : { thinkingBudget: 128 };
+  return { thinkingLevel: "low" };
+}
+
+function netError(e, timedOut) {
+  if (timedOut) return new Error("Google non ha risposto in tempo. Riprova; se succede ancora, nelle Impostazioni scegli un modello «flash-lite», che è più veloce.");
+  const why = e && e.message ? " (" + e.message + ")" : "";
+  return new Error("Connessione con Google interrotta" + why + ". Controlla la rete e riprova; se succede dopo una lunga attesa, nelle Impostazioni scegli un modello «flash-lite».");
+}
+
+/* Legge la risposta a pezzi (streaming): la connessione resta attiva mentre il modello scrive. */
+async function readSSE(res, onChunk) {
+  let text = "", buf = "";
+  const take = (line) => {
+    line = line.trim();
+    if (!line.startsWith("data:")) return;
+    const raw = line.slice(5).trim();
+    if (!raw || raw === "[DONE]") return;
+    let obj;
+    try { obj = JSON.parse(raw); } catch (e) { return; }
+    if (obj.error) { const err = new Error(explainError(obj.error.code || 500, obj.error.message)); err.status = obj.error.code; err.raw = obj.error.message; throw err; }
+    const c = obj.candidates && obj.candidates[0];
+    const parts = c && c.content && c.content.parts;
+    if (parts) for (const p of parts) if (!p.thought && typeof p.text === "string") text += p.text;
+  };
+  if (!res.body || !res.body.getReader) {
+    (await res.text()).split(/\r?\n/).forEach(take);
+    return text;
+  }
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  for (;;) {
+    const r = await reader.read();
+    if (r.done) break;
+    if (onChunk) onChunk();
+    buf += dec.decode(r.value, { stream: true });
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop();
+    lines.forEach(take);
+  }
+  take(buf);
+  return text;
+}
+
+async function generate(model, parts, temperature, think) {
+  const cfg = {};
+  if (!/^gemini-([3-9]|\d\d)/.test(model) && !/latest/.test(model)) cfg.temperature = temperature;  // per Gemini 3 Google consiglia la temperatura predefinita
+  if (think) cfg.thinkingConfig = think;
+  const ctrl = new AbortController();
+  let timer = null, timedOut = false;
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, 70000); };
+  arm();
+  let res;
+  try {
+    res = await fetch(API + "/models/" + encodeURIComponent(model) + ":streamGenerateContent?alt=sse", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "x-goog-api-key": state.key, "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: parts }], generationConfig: cfg })
+    });
+  } catch (e) { clearTimeout(timer); throw netError(e, timedOut); }
+  if (!res.ok) {
+    clearTimeout(timer);
+    let data = null; try { data = await res.json(); } catch (e) {}
+    const msg = data && data.error && data.error.message;
+    const err = new Error(explainError(res.status, msg)); err.status = res.status; err.raw = msg || "";
+    throw err;
+  }
+  let text;
+  try { text = await readSSE(res, arm); }
+  catch (e) { throw e.status ? e : netError(e, timedOut); }
+  finally { clearTimeout(timer); }
+  if (!text) throw new Error("Il modello non ha risposto. Riprova o cambia modello nelle Impostazioni.");
+  return text;
+}
+
 /* Il terzo parametro (kind) serve solo alla versione dimostrativa. */
 async function askModel(parts, temperature, kind) {
   const model = state.model || DEFAULT_MODEL;
-  const data = await apiFetch("/models/" + encodeURIComponent(model) + ":generateContent", {
-    method: "POST",
-    body: JSON.stringify({ contents: [{ role: "user", parts: parts }], generationConfig: { temperature: temperature } })
-  });
-  const cand = data && data.candidates && data.candidates[0];
-  const text = cand && cand.content && cand.content.parts
-    ? cand.content.parts.filter((p) => !p.thought && typeof p.text === "string").map((p) => p.text).join("")
-    : "";
-  if (!text) throw new Error("Il modello non ha risposto. Riprova o cambia modello nelle Impostazioni.");
-  return text;
+  const think = thinkingFor(model);
+  try { return await generate(model, parts, temperature, think); }
+  catch (e) {
+    if (think && e.status === 400 && !/api.?key/i.test(e.raw || "")) return generate(model, parts, temperature, null);
+    throw e;
+  }
 }
 
 /* Estrae il JSON dalla risposta anche se il modello aggiunge testo attorno. */
@@ -566,13 +674,13 @@ function parseJson(text) {
 const EXCLUDE = /image|tts|embedding|live|audio|aqa|robotics|computer|veo|imagen|transcribe|translate|learnlm|guard/;
 
 function pickDefault(models) {
+  if (models.some((m) => m.id === DEFAULT_MODEL)) return DEFAULT_MODEL;
   let best = null, bestV = -1;
   for (const m of models) {
     const hit = /^gemini-(\d+(?:\.\d+)?)-flash$/.exec(m.id);
     if (hit && parseFloat(hit[1]) > bestV) { bestV = parseFloat(hit[1]); best = m.id; }
   }
   if (best) return best;
-  if (models.some((m) => m.id === DEFAULT_MODEL)) return DEFAULT_MODEL;
   return models.length ? models[0].id : DEFAULT_MODEL;
 }
 
@@ -633,6 +741,25 @@ async function saveSettings(reload) {
   }
 }
 
+async function testConnection() {
+  const st = $("settings-status");
+  const key = $("in-key").value.trim();
+  if (!key) { setStatus(st, "Incolla prima la chiave API.", "error"); return; }
+  if (key !== state.key) { state.key = key; store.set("key", key); }
+  state.model = $("in-model").value || state.model; store.set("model", state.model);
+  setBusy(true);
+  setStatus(st, "Provo a parlare con Google…", "loading");
+  const t0 = Date.now();
+  try {
+    await askModel([{ text: "Rispondi solo con la parola OK." }], 0, "test");
+    const s = Math.max(1, Math.round((Date.now() - t0) / 1000));
+    setStatus(st, "Funziona: risposta in " + s + (s === 1 ? " secondo" : " secondi") + " con il modello " + (state.model || DEFAULT_MODEL) + ".");
+  } catch (e) {
+    setStatus(st, e.message, "error");
+  }
+  setBusy(false);
+}
+
 function requireKey(statusEl) {
   if (state.key) return true;
   toggleSettings(true);
@@ -656,14 +783,14 @@ function shrink(file) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const max = 1280;
+      const max = 1024;
       const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
       const c = document.createElement("canvas");
       c.width = Math.round(img.naturalWidth * scale);
       c.height = Math.round(img.naturalHeight * scale);
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      const dataUrl = c.toDataURL("image/jpeg", 0.82);
+      const dataUrl = c.toDataURL("image/jpeg", 0.78);
       resolve({ dataUrl: dataUrl, base64: dataUrl.split(",")[1] });
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Non riesco a leggere questa immagine.")); };
@@ -922,7 +1049,9 @@ function vincoli(d, m) {
     ? "Usa ESATTAMENTE queste quantità (pesi a crudo e al netto degli scarti, da non aumentare né ridurre): " + r + ". "
     : "Per questo pasto non ci sono quantità fissate: proponi un piatto equilibrato e leggero. ";
   if (sg) t += "In questo giorno tutto deve essere senza glutine. ";
-  if (m !== "colazione") {
+  if (m.startsWith("spuntino")) {
+    t += "La frutta deve essere di stagione (" + FRUTTA_STAGIONE[new Date().getMonth()] + "). Lo spuntino deve essere semplice e veloce, anche senza cottura, e trasportabile. ";
+  } else if (m !== "colazione") {
     t += "La verdura è libera: preferisci quella di stagione (" + STAGIONE[new Date().getMonth()] + "). ";
     t += "Sostituzioni ammesse: al posto di 90 g di pane integrale o di 70 g di riso, 250 g di patate, 150 g di gnocchi di patate o 70 g di polenta" +
       (sg ? "" : ", oppure 70 g di cous cous, farro, orzo o pasta di semola") +
@@ -961,17 +1090,25 @@ function renderDays() {
   });
 }
 
+function saveAlt() {
+  const clean = {};
+  for (const k in state.alt) if (state.alt[k]) { const r = Object.assign({}, state.alt[k]); delete r.loading; clean[k] = r; }
+  store.set("alt", clean);
+}
+
 function renderWeek() {
   const d = state.day, day = SETTIMANA[d], box = $("week");
   box.textContent = "";
   const tot = { kcal: 0, p: 0, c: 0, g: 0 };
+  let libera = false;
   PASTI.forEach((pm) => {
-    const m = pm[0], base = day[m], alt = state.alt[d + "_" + m], r = alt || base;
+    const m = pm[0], key = d + "_" + m, base = day[m], alt = state.alt[key], r = alt || base;
     const wrap = el("div", "meal");
     wrap.appendChild(el("span", "meal-label", pm[1] + (alt ? " · alternativa" : "")));
     if (!r) {
+      libera = true;
       wrap.appendChild(el("h3", "", "Cena libera"));
-      wrap.appendChild(el("p", "muted", "Nessuna quantità fissata: scegli quello che preferisci. Se vuoi un'idea, usa «Con quello che ho in casa» qui sotto."));
+      wrap.appendChild(el("p", "muted", "Nessuna quantità fissata: scegli quello che preferisci, oppure chiedi un'idea."));
     } else if (r.semplice) {
       const s = el("div", "simple");
       s.appendChild(el("h3", "", r.titolo));
@@ -982,34 +1119,50 @@ function renderWeek() {
       wrap.appendChild(recipeCard(r));
     }
     if (r && r.nutr) { tot.kcal += r.nutr.kcal; tot.p += r.nutr.p; tot.c += r.nutr.c; tot.g += r.nutr.g; }
-    if (base && !base.semplice) {
-      const b = el("button", "small btn-alt", alt ? "Torna alla ricetta del menu" : "Proponi un'alternativa");
-      b.type = "button"; b.disabled = state.busy;
-      b.addEventListener("click", () => {
-        if (alt) { delete state.alt[d + "_" + m]; renderWeek(); } else makeAlt(d, m);
-      });
-      wrap.appendChild(b);
+
+    const st = el("div");
+    st.setAttribute("role", "status");
+    if (state.altBusy === key) setStatus(st, base ? "Cerco un'alternativa…" : "Cerco un'idea…", "loading");
+    else if (state.altErr[key]) setStatus(st, state.altErr[key], "error");
+    wrap.appendChild(st);
+
+    const row = el("div", "row");
+    const ask = el("button", "small btn-alt", alt ? (base ? "Un'altra alternativa" : "Un'altra idea") : (base ? "Proponi un'alternativa" : "Proponi un'idea"));
+    ask.type = "button"; ask.disabled = state.busy;
+    ask.addEventListener("click", () => makeAlt(d, m));
+    row.appendChild(ask);
+    if (alt) {
+      const back = el("button", "small btn-alt", base ? "Torna al menu" : "Togli l'idea");
+      back.type = "button"; back.disabled = state.busy;
+      back.addEventListener("click", () => { delete state.alt[key]; delete state.altErr[key]; saveAlt(); renderWeek(); });
+      row.appendChild(back);
     }
+    wrap.appendChild(row);
     box.appendChild(wrap);
   });
   $("day-total").textContent = "Totale di " + nomeGiorno(d) + ": circa " + tot.kcal.toLocaleString("it-IT") + " kcal · proteine " + tot.p +
-    " g · carboidrati " + tot.c + " g · grassi " + tot.g + " g" + (d === "sab" ? " (cena libera esclusa)" : "");
+    " g · carboidrati " + tot.c + " g · grassi " + tot.g + " g" + (libera ? " (cena libera esclusa)" : "");
 }
 
 async function makeAlt(d, m) {
-  if (state.busy || !requireKey($("week-status"))) return;
+  const key = d + "_" + m;
+  if (state.busy) return;
+  if (!state.key) { requireKey($("week-status")); return; }
   setBusy(true);
-  setStatus($("week-status"), "Cerco un'alternativa per " + nomePasto(m) + "…", "loading");
+  state.altBusy = key; delete state.altErr[key];
+  renderWeek();
   try {
     state.lastSlot = { d: d, m: m, n: 1 };
-    const avoid = [SETTIMANA[d][m].titolo];
-    const list = adopt(parseJson(await askModel([{ text: promptPerMe(d, m, 1, avoid, false) }], 0.9, "perme")), { vincoli: vincoli(d, m), piano: true });
-    if (!list.length) throw new Error("Nessuna ricetta ricevuta. Riprova.");
-    state.alt[d + "_" + m] = list[0];
-    setStatus($("week-status"), "");
+    const base = SETTIMANA[d][m], prev = state.alt[key];
+    const avoid = [base && base.titolo, prev && prev.titolo].filter(Boolean);
+    const list = adopt(parseJson(await askModel([{ text: promptPerMe(d, m, 1, avoid, false) }], 0.9, "perme")), { vincoli: vincoli(d, m), piano: true, alt: true });
+    if (!list.length) throw new Error("Nessuna proposta ricevuta. Riprova.");
+    state.alt[key] = list[0];
+    saveAlt();
   } catch (e) {
-    setStatus($("week-status"), e.message, "error");
+    state.altErr[key] = e.message;
   }
+  state.altBusy = null;
   setBusy(false);
   renderWeek();
 }
@@ -1115,6 +1268,7 @@ async function loadDetail(r) {
     const n = normN(out.nutrizione);
     if (n) r.nutr = n;   // la stima fatta sulle dosi esatte è più precisa di quella dell'elenco
     r.loading = false;
+    if (r.alt) { saveAlt(); renderWeek(); }
     if (state.current === r) { setStatus($("detail-status"), ""); renderDetail(r); }
   } catch (e) {
     r.loading = false;
@@ -1245,7 +1399,7 @@ function toggleTimer(button, minutes, label) {
 /* ---------- Avvio ---------- */
 function setBusy(b) {
   state.busy = b;
-  ["btn-analyze", "btn-more", "btn-pm"].forEach((id) => { $(id).disabled = b; });
+  ["btn-analyze", "btn-more", "btn-pm", "btn-test"].forEach((id) => { $(id).disabled = b; });
   $("btn-recipes").disabled = b || !state.ingredients.length;
   document.querySelectorAll(".btn-alt").forEach((x) => { x.disabled = b; });
 }
@@ -1258,6 +1412,7 @@ function addFromForm(inputId) {
 $("btn-settings").addEventListener("click", () => toggleSettings());
 $("btn-save").addEventListener("click", () => saveSettings(false));
 $("btn-reload-models").addEventListener("click", () => saveSettings(true));
+$("btn-test").addEventListener("click", testConnection);
 $("tab-frigo").addEventListener("click", () => setTab("frigo"));
 $("tab-perme").addEventListener("click", () => setTab("perme"));
 $("in-camera").addEventListener("change", (e) => { addPhotos(e.target.files, $("photo-status")); e.target.value = ""; });
@@ -1276,9 +1431,10 @@ $("pm-meal").addEventListener("change", renderRule);
 $("in-plan").addEventListener("change", (e) => store.set("plan", e.target.checked));
 $("btn-back").addEventListener("click", closeRecipe);
 
+Object.keys(state.alt).forEach((k) => { if (state.alt[k]) delete state.alt[k].loading; });
 GIORNI.forEach((g) => { const o = el("option", "", g[1]); o.value = g[0]; $("pm-day").appendChild(o); });
 $("pm-day").value = OGGI;
-$("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 15 ? "pranzo" : "cena"; })();
+$("pm-meal").value = (function () { const h = new Date().getHours(); return h < 10 ? "colazione" : h < 12 ? "spuntino1" : h < 15 ? "pranzo" : h < 18 ? "spuntino2" : "cena"; })();
 $("in-plan").checked = store.get("plan", true);
 setTab(state.tab);
 renderModels();
