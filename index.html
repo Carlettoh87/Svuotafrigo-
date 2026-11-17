@@ -251,17 +251,19 @@ footer { text-align: center; font-size: 13.5px; padding: 0 12px; }
 /* Barra dei timer, sempre visibile in basso */
 #timerbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: flex; gap: 8px; overflow-x: auto; padding: 10px calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);
+  display: flex; align-items: stretch; gap: 8px; overflow: hidden; padding: 10px calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);
   background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0,0,0,.06);
 }
 #timerbar[hidden] { display: none !important; }
+#timerbar .tb-chips { display: flex; gap: 8px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+#timerbar .tb-chips::-webkit-scrollbar { display: none; }
 body.has-timers { padding-bottom: calc(env(safe-area-inset-bottom) + 110px); }
 .timer-chip {
   flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 0; padding: 8px 12px;
-  border: 1px solid var(--accent); border-radius: 2px; background: var(--surface); text-transform: none; letter-spacing: 0; text-align: left; max-width: 220px;
+  border: 1px solid var(--accent); border-radius: 2px; background: var(--surface); text-transform: none; letter-spacing: 0; text-align: left; max-width: 180px;
 }
 .timer-chip .tc-time { font: 500 22px/1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; color: var(--accent); }
-.timer-chip .tc-label { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+.timer-chip .tc-label { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
 .timer-chip.done { background: var(--warn-bg); border-color: var(--warn); animation: pulse 1s ease-in-out infinite alternate; }
 .timer-chip.done .tc-time { color: var(--warn); }
 @keyframes pulse { from { opacity: 1; } to { opacity: .55; } }
@@ -354,7 +356,7 @@ main.in-game > #game { display: flex !important; }
 .game-pad button { min-height: 60px; font-size: 15px; background: var(--surface); }
 .game-pad #g-left, .game-pad #g-right { font-size: 24px; letter-spacing: 0; }
 .game-help { font-size: 13.5px; }
-.timer-play { flex: none; min-height: 0; padding: 8px 14px; font-size: 12px; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.timer-play { flex: none; max-width: 136px; min-height: 0; padding: 8px 12px; font-size: 12px; white-space: normal; line-height: 1.3; text-align: center; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 
 
@@ -2340,6 +2342,9 @@ function renderTimers() {
   bar.textContent = "";
   bar.hidden = keys.length === 0;
   document.body.classList.toggle("has-timers", keys.length > 0);
+  // i timer scorrono in uno spazio loro; il pulsante del gioco resta sempre visibile a destra
+  const chips = el("div", "tb-chips");
+  bar.appendChild(chips);
   keys.forEach((k) => {
     const tm = timers[k];
     const chip = el("button", "timer-chip" + (tm.done ? " done" : ""));
@@ -2348,7 +2353,7 @@ function renderTimers() {
     chip.appendChild(el("span", "tc-label", tm.label));
     chip.setAttribute("aria-label", (tm.done ? "Tempo scaduto: " : "Timer: ") + tm.label + ". Tocca per chiudere");
     chip.addEventListener("click", () => { delete timers[k]; renderTimers(); });
-    bar.appendChild(chip);
+    chips.appendChild(chip);
   });
   const run = runningTimers();
   if (run.length && !game.open) {
